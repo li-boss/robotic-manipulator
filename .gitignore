@@ -1,0 +1,18 @@
+# Local data, model weights, credentials and generated files
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+data/
+models/
+*.pt
+*.pth
+*.onnx
+*.bag
+logs/
+tmp/
+*.db
+*.sqlite3
+.pytest_cache/
