@@ -20,4 +20,11 @@
 normal 是原笑脸协议的离线接单演练，不是完整分拣链路。gesture 为手势本地确认，随后按原协议限制阻止真实请求；没有偷偷改 label 或新增线上的字段。
 日志在 logs/，打印契约版本、场景、ID、结果和路径。mock 返回 ACCEPTED 只表示接单，不能报告真实动作完成。
 
-权重未纳入 Git（遵循现有 .gitignore）。其他机器可运行 `python -m integration_tools.download_gesture_assets` 下载固定版本的上游资源，再安装 emotion_interaction/requirements.txt。测试范围目前是 D 策略与协议样例，尚非七接口完整验收。
+权重未纳入 Git（遵循现有 .gitignore）。其他机器先按 [模块 README](../emotion_interaction/README.md) 安装 Python 3.13、创建独立环境并安装依赖，然后在仓库根目录下载模型：
+
+```powershell
+.venv\Scripts\python.exe -m integration_tools.download_gesture_assets
+.venv\Scripts\python.exe -m integration_tools.download_smile_assets
+```
+
+第一条下载两个手势相关模型，第二条下载笑脸模型，联合检测需要三个模型齐全。测试范围目前是 D 策略与协议样例，尚非七接口完整验收。

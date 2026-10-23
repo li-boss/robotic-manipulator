@@ -61,9 +61,15 @@ class GestureDetector:
         result = self.landmarker.detect(self.mp.Image(
             image_format=self.mp.ImageFormat.SRGB, data=cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)))
         count = len(result.hand_landmarks)
+        boxes = []
+        for landmarks in result.hand_landmarks:
+            boxes.append([max(0.0, min(p.x for p in landmarks)),
+                          max(0.0, min(p.y for p in landmarks)),
+                          min(1.0, max(p.x for p in landmarks)),
+                          min(1.0, max(p.y for p in landmarks))])
         if count != 1:
             return {"gesture": None, "raw_label": "no_hand" if count == 0 else "multiple_hands",
-                    "confidence": 0.0, "hand_count": count}
+                    "confidence": 0.0, "hand_count": count, "hand_boxes": boxes}
         h, w = bgr.shape[:2]
         points = [(int(p.x * w), int(p.y * h)) for p in result.hand_landmarks[0]]
         xs, ys = zip(*points)
@@ -76,7 +82,8 @@ class GestureDetector:
         local = [(px - x, py - y) for px, py in points]
         thickness = max(1, int(size / 100 * 3))
         inside = lambda p: 0 <= p[0] < size and 0 <= p[1] < size
-        return self._classify_canvas(canvas, local, inside, thickness)
+        prediction = self._classify_canvas(canvas, local, inside, thickness)
+        return {**prediction, "hand_boxes": boxes}
 
     def _classify_canvas(self, canvas, local, inside, thickness):
         import cv2

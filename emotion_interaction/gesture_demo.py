@@ -11,6 +11,7 @@ def main():
     import cv2
     from emotion_interaction.gesture_detector import GestureDetector
     from emotion_interaction.gesture_policy import GesturePolicy
+    from emotion_interaction.preview_overlay import draw_hand_boxes, hand_status
     parser = argparse.ArgumentParser()
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--video", type=Path)
@@ -42,7 +43,8 @@ def main():
                 now = time.time_ns() // 1_000_000
                 candidate = policy.update(frame_id=frame_id, captured_at=captured_at,
                     now_ms=now, gesture=prediction["gesture"], confidence=prediction["confidence"])
-                text = f"{prediction['raw_label']} {prediction['confidence']:.2f}"
+                draw_hand_boxes(frame,prediction)
+                text = f"{prediction['raw_label']} {prediction['confidence']:.2f} {hand_status(prediction)}"
                 cv2.putText(frame, text, (20,40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
                 cv2.putText(frame, "LOCAL ONLY - gesture contract pending", (20,75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,200,255), 1)
                 log.write(json.dumps({"frame_id": frame_id, "captured_at": captured_at,
