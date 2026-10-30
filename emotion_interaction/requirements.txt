@@ -1,0 +1,5 @@
+# Tested local imports: Python 3.13.5; CPU inference. No training dependencies needed.
+torch==2.13.0
+mediapipe==0.10.35
+numpy==2.4.3
+opencv-contrib-python==5.0.0.93
