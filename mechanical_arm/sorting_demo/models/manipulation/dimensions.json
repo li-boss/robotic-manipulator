@@ -1,0 +1,370 @@
+{
+  "version": 1,
+  "units": "mm",
+  "urdf_sha256": "9e0e66c68a08f3e2318bf2256f63a8132f21ded68efc0cc3933707e393ce091e",
+  "user_reported": {
+    "version": 1,
+    "units": "mm",
+    "source": "用户在2026-10-16对话中提供；不是助手独立实测",
+    "block_size_mm": [
+      30,
+      30,
+      30
+    ],
+    "cross_total_size_mm": [
+      30,
+      30
+    ],
+    "cross_line_width_mm": 2,
+    "gripper_mechanical_opening_mm": {
+      "min": 0,
+      "max": 60
+    },
+    "gripper_angle_direction": "角度减小则张开增大；角度增大则闭合",
+    "gripper_angle_opening_samples": [
+      {
+        "angle_deg": 10,
+        "opening_mm": 60,
+        "approximate": false
+      },
+      {
+        "angle_deg": 170,
+        "opening_mm": 0,
+        "approximate": true
+      }
+    ],
+    "opening_at_configured_open_angle_mm": null,
+    "joint1_center_height_above_table_mm": 80,
+    "height_reference": "底座上第一个转动关节的中心，不是底座顶面或底面",
+    "user_setup_preferences": {
+      "physical_assembly_matches_model": "用户确认实物安装与三维模型一致",
+      "use_cross_paper": false,
+      "prefer_model_derived_geometry": true,
+      "note": "记录用户要求，不表示相机光学参数已知或现场精度已验证"
+    },
+    "camera_hardware": {
+      "user_report": "课程配套原装USB相机，未更换镜头",
+      "course_resolution": [
+        640,
+        480
+      ],
+      "course_fov_deg": 110,
+      "course_fov_axis": null,
+      "camera_matrix_available": false,
+      "distortion_available": false,
+      "note": "原配身份已确认；课程资料未注明视场角方向，也未提供内参或畸变系数"
+    },
+    "notes": [
+      "用户已提供10度对应60毫米、170度基本闭合；两端点不足以证明整个传动关系线性，不自动插值生成抓取角度。",
+      "机械最大开口60毫米不证明当前配置张开角度已经达到60毫米。",
+      "最小开口0毫米不表示舵机目标角度为0度。",
+      "桌面坐标由课程URDF的joint1原点高度减去用户报告的80毫米计算；须以实物定位误差检查核对。"
+    ]
+  },
+  "joints": [
+    {
+      "name": "joint1",
+      "parent": "base_link",
+      "child": "link1",
+      "xyz_mm": [
+        0.0,
+        0.0,
+        64.0
+      ],
+      "origin_distance_mm": 64.0
+    },
+    {
+      "name": "joint2",
+      "parent": "link1",
+      "child": "link2",
+      "xyz_mm": [
+        0.0,
+        0.0,
+        43.5
+      ],
+      "origin_distance_mm": 43.5
+    },
+    {
+      "name": "joint3",
+      "parent": "link2",
+      "child": "link3",
+      "xyz_mm": [
+        -82.85,
+        0.0,
+        0.0
+      ],
+      "origin_distance_mm": 82.85
+    },
+    {
+      "name": "joint4",
+      "parent": "link3",
+      "child": "link4",
+      "xyz_mm": [
+        -82.85,
+        0.0,
+        0.0
+      ],
+      "origin_distance_mm": 82.85
+    },
+    {
+      "name": "joint5",
+      "parent": "link4",
+      "child": "link5",
+      "xyz_mm": [
+        -73.85,
+        -2.15,
+        0.0
+      ],
+      "origin_distance_mm": 73.88128991835484
+    }
+  ],
+  "meshes": [
+    {
+      "link": "base_link",
+      "sha256": "a3d836d52c0f594cb231baf04f0f962016688395f4d9f003324015811340440d",
+      "min_mm": [
+        -60.0,
+        -200.001,
+        -0.001
+      ],
+      "max_mm": [
+        60.0,
+        60.0,
+        82.801
+      ],
+      "size_mm": [
+        120.0,
+        260.001,
+        82.802
+      ],
+      "box": {
+        "center_mm": [
+          0.0,
+          -70.0005,
+          41.4
+        ],
+        "half_size_mm": [
+          60.0,
+          130.0005,
+          41.401
+        ]
+      }
+    },
+    {
+      "link": "link1",
+      "sha256": "bdb18ec8cb33aa3adf3d56892c82a820e6b29c787e5ed27b5f2b0c1923ef66a7",
+      "min_mm": [
+        -27.45,
+        -27.495,
+        -0.651
+      ],
+      "max_mm": [
+        27.495,
+        27.495,
+        54.001
+      ],
+      "size_mm": [
+        54.945,
+        54.99,
+        54.652
+      ],
+      "box": {
+        "center_mm": [
+          0.022500000000000853,
+          0.0,
+          26.674999999999997
+        ],
+        "half_size_mm": [
+          27.4725,
+          27.495,
+          27.326
+        ]
+      },
+      "static_capsule_candidate": {
+        "start_mm": [
+          0,
+          0,
+          0
+        ],
+        "end_mm": [
+          0.0,
+          0.0,
+          43.5
+        ],
+        "radius_mm": 27.501
+      }
+    },
+    {
+      "link": "link2",
+      "sha256": "40cadce1808e50d933e8de0eb4139f49993f3aa6e5f92c499b468101c32e888f",
+      "min_mm": [
+        -93.351,
+        -17.6,
+        -23.801
+      ],
+      "max_mm": [
+        13.651,
+        11.463,
+        23.801
+      ],
+      "size_mm": [
+        107.002,
+        29.063000000000002,
+        47.602
+      ],
+      "box": {
+        "center_mm": [
+          -39.85,
+          -3.068500000000001,
+          0.0
+        ],
+        "half_size_mm": [
+          53.501,
+          14.531500000000001,
+          23.801
+        ]
+      },
+      "static_capsule_candidate": {
+        "start_mm": [
+          0,
+          0,
+          0
+        ],
+        "end_mm": [
+          -82.85,
+          0.0,
+          0.0
+        ],
+        "radius_mm": 25.342
+      }
+    },
+    {
+      "link": "link3",
+      "sha256": "f5ce255fe2b43d4876451559883dddd69174b571018818e5e98aea8335514194",
+      "min_mm": [
+        -93.335,
+        -17.6,
+        -24.4
+      ],
+      "max_mm": [
+        13.651,
+        11.463,
+        23.2
+      ],
+      "size_mm": [
+        106.98599999999999,
+        29.063000000000002,
+        47.599999999999994
+      ],
+      "box": {
+        "center_mm": [
+          -39.842,
+          -3.068500000000001,
+          -0.5999999999999996
+        ],
+        "half_size_mm": [
+          53.492999999999995,
+          14.531500000000001,
+          23.799999999999997
+        ]
+      },
+      "static_capsule_candidate": {
+        "start_mm": [
+          0,
+          0,
+          0
+        ],
+        "end_mm": [
+          -82.85,
+          0.0,
+          0.0
+        ],
+        "radius_mm": 25.905
+      }
+    },
+    {
+      "link": "link4",
+      "sha256": "541e2af3b1b41b16df34d7036940331c0624f995a5489c7a45322af1fd8c809d",
+      "min_mm": [
+        -76.674,
+        -64.6,
+        -18.7
+      ],
+      "max_mm": [
+        13.651,
+        32.401,
+        16.425
+      ],
+      "size_mm": [
+        90.325,
+        97.001,
+        35.125
+      ],
+      "box": {
+        "center_mm": [
+          -31.511500000000005,
+          -16.099499999999995,
+          -1.1374999999999993
+        ],
+        "half_size_mm": [
+          45.1625,
+          48.5005,
+          17.5625
+        ]
+      },
+      "static_capsule_candidate": {
+        "start_mm": [
+          0,
+          0,
+          0
+        ],
+        "end_mm": [
+          -73.85,
+          -2.15,
+          0.0
+        ],
+        "radius_mm": 64.483
+      }
+    },
+    {
+      "link": "link5",
+      "sha256": "687849fb50b9e62faefd9819a2579488a1cb145b9245527bb494319f45302159",
+      "min_mm": [
+        -30.057,
+        -12.734,
+        0.123
+      ],
+      "max_mm": [
+        30.466,
+        42.787,
+        111.065
+      ],
+      "size_mm": [
+        60.522999999999996,
+        55.521,
+        110.942
+      ],
+      "box": {
+        "center_mm": [
+          0.20450000000000124,
+          15.026499999999999,
+          55.594
+        ],
+        "half_size_mm": [
+          30.261499999999998,
+          27.7605,
+          55.471
+        ]
+      }
+    }
+  ],
+  "derived": {
+    "table_z_mm": -16.0,
+    "block_top_z_mm": 14.0,
+    "square_top_diagonal_mm": 42.42640687119285,
+    "ideal_aligned_opening_margin_each_side_mm": 15.0
+  },
+  "model_alignment_verified": false,
+  "collision_envelopes_verified": false,
+  "scope": "候选包络包含所读静态网格；未证明覆盖真实安装附件、线缆或夹爪全行程；不写入运动配置，不作为实测证据"
+}

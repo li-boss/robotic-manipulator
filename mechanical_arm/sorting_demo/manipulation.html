@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>框选抓放</title><style>
+*{box-sizing:border-box}body{margin:0;background:#101923;color:#eaf1f8;font:15px/1.6 system-ui,sans-serif}main{max-width:1380px;margin:24px auto;padding:0 20px}h1{margin:0;font-size:28px}h2{font-size:20px}h3{font-size:16px}a{color:#97c7ff}.muted{color:#acbfd3}.panel{background:#182534;border:1px solid #344b63;border-radius:12px;padding:20px;margin:18px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.fields label{margin:0}button,input,select,textarea{font:inherit;border-radius:6px}button{padding:9px 13px;border:0;background:#397bd0;color:#fff;margin:4px 5px 4px 0;cursor:pointer}button.secondary{background:#344b63}button:disabled{opacity:.45;cursor:default}input,select,textarea{width:100%;background:#101923;color:#eaf1f8;border:1px solid #49607a;padding:8px}input[type=checkbox]{width:auto}label{display:block;margin:12px 0}textarea{min-height:95px;font:13px monospace}summary{cursor:pointer;font-weight:600}pre{white-space:pre-wrap;word-break:break-word;max-height:350px;overflow:auto;font-size:13px}canvas{width:100%;background:#09121c;border-radius:8px}#mImage{touch-action:none;cursor:crosshair}#mView{height:390px;touch-action:none}#mNotice{color:#ffcf85;white-space:pre-wrap}#mReady{white-space:pre-wrap}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid #344b63}.scroll{overflow:auto}#mApproval{border:1px solid #e7b45b;padding:15px;border-radius:8px}#mStream{width:100%;max-height:250px;object-fit:contain}.pill{display:inline-block;padding:4px 10px;border:1px solid #506680;border-radius:30px}.hint{border-left:3px solid #70dcb0;padding-left:12px}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}.fields{grid-template-columns:1fr 1fr}}@media(max-width:500px){.fields{grid-template-columns:1fr}}
+header{display:flex;align-items:center;justify-content:space-between;gap:15px}main{max-width:1300px}.primary{font-weight:700;padding:12px 24px}#mStream{max-height:480px;background:#09121c;border-radius:8px;display:block}#mSetupBanner{padding:10px 14px;background:#182534;border-radius:8px}#mPickHint,#mNextStep{min-height:28px}#mPlanSummary{white-space:pre-wrap}#mSetupPanel{margin-top:24px}#mApproval pre{max-height:none}details{margin:12px 0}#mExecutionHint{color:#acbfd3}#mPlanDetails[open]{border-top:1px solid #344b63;padding-top:12px}</style></head><body><main>
+<header><h1>框选抓放</h1><nav><a href="/calibration">相机标定</a> · <a href="/">手动调整机械臂 →</a></nav></header>
+<p class="muted">冻结画面 → 框选和点选 → 生成计划 → 核对后确认运动</p>
+<span class="pill" id="mMode">连接中</span> <span class="pill" id="mJob">尚未执行</span>
+<p id="mNotice" role="status"></p><div id="mSetupBanner" class="hint"><span id="mSetupSummary">正在读取定位设置…</span> <button id="mOpenSetup" class="secondary">完成首次设置</button></div>
+<div class="grid"><section class="panel"><h2>1．画面与选点</h2><label>任务<select id="mTaskMode"><option value="pick_place">夹取并放到指定位置（结束后撤离）</option><option value="pickup">只夹取并抬升</option></select></label><img id="mStream" alt="设备实时画面"><canvas id="mImage" width="640" height="480" hidden aria-label="在冻结图像上框选和点选"></canvas>
+<button id="mCapture">冻结画面</button><button id="mSelectBox" class="secondary">拖外围框（可斜放）</button><button id="mSelectQuad" class="secondary">四角框选（旋转 / 透视）</button><p id="mFrameInfo" class="muted">实时画面；冻结后开始选点。</p><p id="mPickHint" class="hint">先点击“冻结画面”。</p><p class="muted">拖框只需包住方块，不要求框边贴合。斜放或透视明显时可用四角框选：沿顶面轮廓依次点四角，第一、二点确定边方向，中心仍由你点选。</p>
+
+<button id="mUndo" class="secondary">撤销上一步选点</button><button id="mReset" class="secondary">清除目标选点</button><details><summary>修改选点 / 缩放 / 精确输入</summary><label>重新指定<select id="mPickMode"><option value="bbox">拖外围矩形（包住整个方块）</option><option value="quad">依次点顶面四角（首条边作方向）</option><option value="center">顶面中心</option><option value="edgeA">顶面边的第一个端点</option><option value="edgeB">顶面边的第二个端点</option><option value="place">桌面放置中心</option><option value="board">标定纸角点（按编号）</option><option value="check">独立检查点</option></select></label>
+
+
+<details><summary>精确修正原图像素（可选）</summary><div class="fields"><label>框：左,上,右,下<input id="mExactBox"></label><label>中心：u,v<input id="mExactCenter"></label><label>边A：u,v<input id="mExactA"></label><label>边B：u,v<input id="mExactB"></label><label>桌面放置点：u,v<input id="mExactPlace"></label></div><button id="mApplyExact">应用填写的选点（不运动）</button></details>
+<label>图像显示比例<input id="mZoom" type="range" min="50" max="150" step="10" value="100"></label><pre id="mSelection"></pre></details>
+<div id="mDestinationGroup"><label>放置方式<select id="mDestinationKind"><option value="pixel">图中点击桌面放置中心</option><option value="fixed">已保存固定放置点</option></select></label><label id="mFixedLabel" hidden>固定放置点<select id="mFixed"></select></label>
+<details><summary>将放置点保存供以后使用</summary><div class="fields"><label>把当前桌面点另存为<input id="mDestinationName" placeholder="填写名称"></label></div><button id="mSaveDestination">保存这个固定点（不运动）</button></details>
+</div></section>
+<section class="panel"><h2>2．生成计划</h2><p id="mNextStep" class="hint" aria-live="polite">先冻结画面并完成选点。</p>
+
+<button id="mGenerate" class="primary">生成计划（不运动）</button><p id="mPlanningStatus" class="hint" role="status" aria-live="polite"></p><p id="mPlanSummary" aria-live="polite">生成后会显示取放位置、动作和用时。</p><div id="mEmptyValidation" hidden class="hint"><p>首次使用先验证空载路径。移走方块后，按下方顺序逐步预览并确认运动；完成后登记本次路径。</p><label><input type="checkbox" id="mEmpty">方块已移走，夹爪空载</label><button id="mNextEmptyStep">预览下一步运动</button><button id="mRegisterValidation">记录本次空载路径通过（不运动）</button></div><details id="mPlanDetails"><summary>查看三维预览与全部关节参数</summary>
+<canvas id="mView" width="800" height="500" aria-label="机械臂三维计划预览"></canvas>
+<p class="muted">拖动旋转视角，滚轮缩放。三维预览不是实机验证。</p>
+<button id="mLoadMeshes">加载三维结构外形（约63 MB）</button><button id="mPlay">播放本次预览（不运动）</button>
+<p><a href="/manipulation/robot.urdf" download="dofbot_review.urdf">下载含夹持中心和碰撞包络的审阅URDF</a></p>
+<label>步骤<input id="mStepSlider" type="range" min="0" max="0" value="0"></label><p id="mStepLabel">尚未生成计划</p><details><summary>定位来源与计算详情</summary><pre id="mPlanInfo"></pre></details>
+<div class="scroll"><table><thead><tr><th>步骤</th><th>关节目标与用时</th><th>验证进度</th></tr></thead><tbody id="mSteps"></tbody></table></div>
+</details><h2>3．确认运动</h2><p id="mExecutionHint">生成计划后，在这里核对并确认运动。</p><div id="mApproval" hidden><pre id="mApprovalText"></pre><label id="mApprovalCheckLabel"><input type="checkbox" id="mApproveCheck"> 本次冻结图中的中心和方向正确，方块及放置空区域未改变，同意以上明确步骤与运动参数</label><button id="mExecute" disabled>确认执行本次计划（机械臂运动）</button><button id="mCancel" class="secondary">取消未执行计划（不运动）</button></div>
+<details><summary>其他规划操作与验证记录（可选）</summary><label id="mSceneLabel" hidden><input type="checkbox" id="mSceneConfirmed"> 机械臂已在观察姿态、夹爪张开；物块静止，桌面、路径和线缆已核对</label><button id="mDryrun">重新生成空载计划（不运动）</button><button id="mPreview">生成正式任务预览（不运动）</button><button id="mLocate">仅计算空间位置（不运动）</button><pre id="mLocation"></pre><pre id="mDraftInfo"></pre></details>
+<details><summary>执行后：人工结果与验收进度</summary><label>要记录的任务<select id="mResultTask"></select></label><label>现场结果说明<input id="mResultNote"></label><button id="mSuccess">记录本次任务成功（不运动）</button><button id="mFailed" class="secondary">记录本次任务失败（不运动）</button><pre id="mAcceptance"></pre></details>
+</section></div><details class="panel" id="mSetupPanel"><summary>首次设置与高级参数（平时不用展开）</summary><h2>首次设置：保存模型定位参数</h2><p>首次生成计划时自动准备模型参数。这里仅用于调整参数来源或查看模型；关节变化不要求重新保存参数，安装、桌面或镜头设置变化后须更新。</p>
+<p id="mSource" class="hint">冻结当前画面即可计算随臂相机位置，不要求固定观察姿态。模型与成像参数随本次完整计划确认。</p>
+<div class="fields" id="mObservationFields" hidden><label>已有观察姿态<select id="mCadState"></select></label><label>明确的1～5号观察目标（度）<input id="mCadObserve" placeholder="选择保存姿态后填入，或填写已确认目标"></label></div><div class="fields"><label>图像轴候选旋转<select id="mCadRoll"><option value="0">0°（默认候选）</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label></div>
+<button id="mCadUseState" class="secondary" hidden>填入所选姿态（不运动）</button>
+<label>相机成像参数来源<select id="mCadOptics"><option value="diagonal">原配110°按对角视场估算（精度待验证）</option><option value="horizontal">原配110°按水平视场估算（精度待验证）</option><option value="imported">导入相机真实参数JSON</option></select></label>
+<label id="mCadImportLabel" hidden>相机参数JSON：image_size、matrix、distortion（5项）、source<textarea id="mCadImport" placeholder="参数须与冻结图像的相机、分辨率及镜头设置一致"></textarea></label>
+<button id="mPrepareCad">生成首次设置参数（不运动）</button>
+<pre id="mCadCandidate">尚未生成候选参数。</pre>
+<label><input type="checkbox" id="mCadAccept">我已核对候选中的观察目标、开合角度、运动高度和现场空域；接受当前参数来源。采用候选不代表实测精度通过。</label>
+<button id="mAdoptCad">保存并使用这份参数（不运动）</button>
+<p class="muted">6号张开采用你提供的10°/60毫米；夹持角度沿用原控制配置，绝不把170°完全闭合自动用于夹木块。可以直接预览并确认整批计划；空载逐步验证保留为可选检查。</p>
+<details class="panel" id="mPreparation"><summary>专业设置与历史标定工具</summary><p id="mReady">读取准备状态…</p>
+<p class="hint">无纸模式由上方生成模型候选；这里可审阅和调整运动参数。下方纸张与实测流程作为已有标定方式保留，无纸模式不要求纸张证据。</p>
+<div class="fields" id="mFields"></div>
+<label>允许取放的桌面区域（按外围顺序，每行 X,Y，毫米）<textarea id="mWorkspace"></textarea></label>
+<label>运动空间最小坐标、最大坐标（每行 X,Y,Z，毫米）<textarea id="mBounds"></textarea></label>
+<details><summary>工具尺寸、方向与连杆包络</summary><div class="fields" id="mModelFields"></div>
+<label>工具包络盒（相对 link5，毫米；center 与 half_size）<textarea id="mToolBoxes"></textarea></label>
+<label>底座包络盒（底座坐标，毫米；center_mm 与 half_size_mm）<textarea id="mBaseBox"></textarea></label>
+<label>现场其他障碍（底座坐标，毫米；center_mm 与 half_size_mm；无其他障碍填 []）<textarea id="mObstacles"></textarea></label>
+<p class="muted">包络须覆盖夹爪开合、摄像头及支架；三维外形不能替代实物核对。</p></details>
+<button id="mSave">保存测量（不运动）</button><button id="mReview">测量保存后：登记模型与定位核对（不运动）</button>
+<details><summary>1．十字纸、多视角内参与观察标定</summary>
+<p>给纸上可辨认的轮廓角点或十字拐点编号，至少四个非共线点。不要只点十字中心。每幅图按同一编号依次点选。</p>
+<label>纸上角点坐标（相对纸张原点，每行 X,Y，毫米）<textarea id="mBoardPoints"></textarea></label>
+<p>已报告：十字总长、总宽各30毫米，线宽2毫米。预填模板取四个黑线端面的中点，顺序为①左、②上、③右、④下，原点为十字交点；纸坐标+X向右、+Y向上。请对照实纸确认。</p>
+<svg viewBox="-22 -22 44 44" width="220" height="220" role="img" aria-label="十字四端点编号"><rect x="-22" y="-22" width="44" height="44" fill="#fff"/><path d="M-1 -15H1V-1H15V1H1V15H-1V1H-15V-1H-1Z" fill="#111"/><g fill="#c64331" font-size="4" text-anchor="middle"><circle cx="-15" cy="0" r=".7"/><circle cx="0" cy="-15" r=".7"/><circle cx="15" cy="0" r=".7"/><circle cx="0" cy="15" r=".7"/><text x="-18" y="1.5">1</text><text x="0" y="-17">2</text><text x="18" y="1.5">3</text><text x="0" y="20">4</text></g></svg>
+<div class="fields"><label>纸张原点相对底座 X,Y,Z（毫米）<input id="mBoardOrigin"></label><label>纸张相对底座绕Z方向（度）<input id="mBoardYaw" type="number"></label></div>
+<button id="mBoardPick">在冻结图中点纸上角点</button><button id="mAddIntrinsic">加入当前多视角样本</button><button id="mFitIntrinsic">计算相机内参（不运动）</button><button id="mAnchor">保存当前固定观察标定（不运动）</button>
+<p id="mBoardInfo">尚未点选</p><p>内参使用10～30幅不同倾斜视角。完成后把纸平铺桌面，恢复最终观察姿态，再冻结、点选并保存观察标定。移动关节请在原手动页面明确确认。</p></details>
+<details><summary>2．独立桌面与顶面定位检查</summary>
+<p>各采集至少三个分散、不共线的位置，输入实际测得的底座坐标；不能使用拟合角点代替独立验证。</p>
+<div class="fields"><label>检查对象<select id="mCheckKind"><option value="table">桌面点</option><option value="top">方块顶面中心</option></select></label><label>实测 X,Y（毫米）<input id="mCheckXY"></label></div>
+<button id="mPickCheck">点选当前冻结图中的检查点</button><button id="mAddCheck">加入独立检查并保存（不运动）</button><p id="mCheckInfo"></p></details>
+<details><summary>3．模型夹持中心实测核对</summary>
+<p>至少三个不同姿态用于核对，另留至少一个独立姿态。先经手动确认到位，冻结记录，再测量夹持中心；不使用模型预测值冒充实测。</p>
+<div class="fields"><label>本姿态明确的1～5号目标角度<input id="mMeasureAngles"></label><label>实测夹持中心 X,Y,Z（毫米）<input id="mMeasureXYZ"></label><label>记录用途<select id="mMeasureKind"><option value="measurements">模型核对</option><option value="independent_measurements">独立验证</option></select></label></div>
+<button id="mAddMeasure">加入当前姿态测量并保存（不运动）</button><p id="mMeasureInfo"></p></details>
+<details><summary>采样记录管理（删除只改资料，不运动）</summary><div id="mEvidence"></div></details>
+<details><summary>已保存固定放置点与高级配置</summary><label>固定点（名称对应底座 X,Y，毫米）<textarea id="mDestinations"></textarea></label><button id="mReload">重新读取保存值</button><button id="mExport">下载完整配置副本</button></details>
+</details>
+
+</details>
+<p class="muted">新完整任务需要真实完整读数。失败停止后续指令，不自动重试、复位或松爪；网页不能撤回已发送的运动。</p>
+</main><script src="/manipulation_view.js"></script><script src="/manipulation_ui.js"></script></body></html>

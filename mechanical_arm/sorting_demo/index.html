@@ -1,0 +1,104 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>机械臂抓木块</title><style>
+*{box-sizing:border-box}body{margin:0;background:#101923;color:#eaf1f8;font:15px/1.6 system-ui,sans-serif}main{max-width:1200px;margin:28px auto;padding:0 20px}h1{margin:0;font-size:28px}h2{font-size:18px;margin-top:0}.muted{color:#a8b9cc}.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:20px;margin:20px 0}.panel{background:#182534;border:1px solid #30445c;border-radius:12px;padding:20px}.view{aspect-ratio:4/3;background:#080e15;position:relative;display:grid;place-items:center;overflow:hidden}.view img{width:100%;height:100%;object-fit:contain}.view canvas{position:absolute;width:100%;height:100%;pointer-events:none}input,textarea{color:#eaf1f8;background:#101923;border:1px solid #49607a;border-radius:5px;padding:8px;width:100%}textarea{height:180px;font:13px monospace}button{background:#397bd0;color:white;border:0;border-radius:6px;padding:10px 14px;cursor:pointer}button:disabled{opacity:.5;cursor:default}label{display:block;margin:10px 0}pre{white-space:pre-wrap;word-break:break-word;font-size:13px}.stats{display:flex;gap:20px;flex-wrap:wrap}.stats strong{font-size:24px;display:block}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px;border-bottom:1px solid #30445c}#notice{color:#ffd080}details{margin:12px 0}.scroll{overflow:auto}[hidden]{display:none!important}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.view canvas{pointer-events:auto;cursor:crosshair;touch-action:none}
+section:has(#video){position:sticky;top:20px;align-self:start}@media(max-width:800px){section:has(#video){position:static}}
+#cardsGrid canvas{pointer-events:auto}#cardsGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:16px 0}.position-card{border:1px solid #49607a;border-radius:10px;padding:14px;background:#101923}.position-card h3{margin:0}.position-card button{margin:4px 4px 4px 0}.card-angles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.card-angles input{min-width:0}.card-phase{border-top:1px solid #30445c;margin-top:12px;padding-top:8px}.card-thumb{width:100%;max-width:240px;height:auto}.position-card p{font-size:13px}#cardsObservation .position-card{max-width:720px}@media(max-width:900px){#cardsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){#cardsGrid{grid-template-columns:1fr}}
+summary{cursor:pointer;font-weight:600;padding:8px 0}button{margin:4px 6px 4px 0}button.secondary{background:#30445c}#approval{border:1px solid #dfab55;border-radius:8px;padding:14px;margin:16px 0}#approvalText{max-height:360px;overflow:auto}.workflow-note{border-left:3px solid #64dc97;padding-left:12px}.preview-picture{max-width:480px}.grid{grid-template-columns:1fr 1fr;align-items:start}#validationTools{margin:0}#validationTools>summary{font-size:20px}#teachingReady{color:#91d6ae}#teachingNotice:empty,#armNotice:empty{display:none}.toolbox{margin:20px 0}#armJob:empty{display:none}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+</style><main><p><a href="/manipulation" style="color:#97c7ff">进入人工指定目标 · 完整抓放与三维预览 →</a></p><h1>机械臂抓取</h1><p class="muted">识别黄色方块的位置，确认计划后抓取并保持夹持。</p><div class="grid"><section class="panel"><h2>实时画面 <small id="cameraState">连接中</small></h2><div class="view"><img id="video" alt="摄像头实时画面" hidden><span id="cameraError">正在连接摄像头</span></div></section><details id="validationTools" open class="panel"><summary>黄色方块自动识别抓取</summary><section id="teachingPanel"><p class="workflow-note">准备：机械臂在固定观察姿态，夹爪张开；九点覆盖范围内放一块静止的黄色方块。</p><p class="muted">识别并预览 → 核对关节计划 → 确认执行 → 夹持后停止。九点由用户报告验证，新位置为插值试抓。</p>
+<p id="taskMode">控制模式：连接中</p><p id="teachingReady">读取准备状态…</p><p id="teachingNotice" role="status"></p><p id="armNotice" role="status"></p>
+<label><input id="teachingSceneConfirmed" type="checkbox" style="width:auto"> 已处于固定观察姿态、夹爪张开；底座、桌面和相机安装未改变，已核对方块、线缆及运动路径</label>
+<button id="teachingAutoPreview">识别位置并生成抓取计划（不运动）</button>
+<p class="muted">此按钮读取观察姿态和相机画面，计算角度；机械臂保持原位。执行前会显示完整关节顺序、目标角度和用时。</p>
+<p id="teachingTarget">尚未生成计划</p>
+<details id="recognitionPicture"><summary>查看本次识别画面与覆盖范围</summary><div class="preview-picture"><div class="view"><img id="teachingFrozen" alt="本次识别结果画面" hidden><span id="teachingImageHint">识别后显示目标中心和九点覆盖范围</span><canvas id="teachingCanvas"></canvas></div>
+<p id="teachingPoint">尚未生成识别结果</p></div></details>
+<div id="approval" hidden><pre id="approvalText"></pre><label><input id="approveCheck" type="checkbox" style="width:auto"> <span id="approveText">我已核对上述参数、现场条件和停止方式，同意本次操作</span></label><button id="executeOnce" disabled>确认执行本次计划</button><button id="cancelApproval">取消本次计划（不运动）</button></div><pre id="armJob"></pre><details><summary>本次检查结果</summary><pre id="armAudit"></pre></details>
+<details><summary>执行后：记录人工观察结果</summary><p class="muted">以下按钮仅保存结果，不驱动机械臂。夹爪继续保持；返回观察姿态或松爪需另行明确操作。</p><button id="teachingSuccess">记录抓取成功（不运动）</button><button id="teachingFailed" class="secondary">记录抓取失败（不运动）</button></details>
+<details><summary>高级工具：原程序采集与验证（可选）</summary><details id="teachingCommonTools"><summary>1．观察、转移及固定放置准备</summary>
+<p>先在原手动面板正式保存夹爪开合目标。记录观察基准前移走木块；底座、桌面、相机安装固定。下面只拍照和保存，不会运动。</p>
+<details><summary>公共转移、固定放置姿态与旧记录入口</summary><label>记录阶段<select id="teachingKind"><option value="reference">空桌面观察基准</option><option value="transfer">转移姿态</option><option value="place_above">固定放置上方</option><option value="place">固定放置姿态</option><option value="target">观察姿态下的木块</option><option value="above">本样本取物上方</option><option value="grasp">本样本抓取姿态</option></select></label>
+<label>此姿态的1～5号目标角度（拍木块不用填）<input id="teachingAngles" placeholder="五个整数，逗号分隔；读数不会自动填入"></label>
+<button id="teachingUseTargets">填入已发送的1～5号目标</button> <button id="teachingCapture">拍照并记录此阶段</button>
+<p id="teachingCaptureStatus" role="status">尚未拍照。记录成功后，下方“本次阶段照片”会更新。</p>
+<p><strong>本次阶段照片（每次记录成功更新）</strong></p><img id="teachingLatest" alt="最近一次成功记录的阶段照片" hidden style="width:100%;max-width:400px;height:auto"><pre id="teachingReadings"></pre>
+</details><details><summary>首次路径的单关节顺序（修改会清除样本与验证，保留备份）</summary>
+<p>各阶段按此顺序逐关节运动。先填入候选再逐步空载核对，候选顺序不表示安全；必要时调整顺序重新准备。</p>
+<label>公共候选顺序（填关节编号，不是角度）<input id="teachingCommonOrder" value="1,2,3,4,5" placeholder="例如1,2,3,4,5"></label>
+<button id="teachingCandidateOrders">把这个候选顺序填入全部路段</button>
+<details><summary>仅需要某一段使用不同顺序时展开</summary><div id="teachingOrders"></div></details>
+<button id="teachingSaveOrders">保存明确顺序（不运动）</button></details>
+</details>
+<div hidden><details><summary>2．首轮9个抓取样本</summary>
+<p id="teachingGridHint">画面九宫格提示仅引导分散摆放，不是在桌面划定取物框。</p>
+<p>九个位置：左上、上中、右上、左中、中心、右中、左下、下中、右下。每个位置先拍木块，再记录取物上方和抓取姿态；不是只拍九张照片。</p>
+<p><strong>木块定位照片（九宫格）</strong>：仅拍新的木块位置时更新；记录上方或抓取姿态时保留这张图。本次阶段照片在上方显示。</p>
+
+<label><input id="teachingCenterConfirmed" type="checkbox" style="width:auto"> 我已核对标出的木块顶面中心；不明确时重新调整观察</label>
+<p>依次记录“木块 → 取物上方 → 抓取姿态”，再生成计划。使用原手动面板调整，输入角度后回车即可调整。</p>
+<button id="teachingSampleDraft">生成本样本验证计划</button>
+<div id="teachingSamples"></div></details>
+</div><details><summary>可选：原程序采集与逐步验证流程</summary><button id="teachingFit">切换并拟合程序验证样本（不运动）</button>
+<button id="teachingValidationDraft">生成独立位置验证计划（不运动）</button>
+<label>当前验证载荷<select id="teachingLoad"><option value="empty">先空载逐步验证</option><option value="loaded">再带块逐步验证</option></select></label>
+<label><input id="teachingEmptyConfirmed" type="checkbox" style="width:auto"> 本次空载验证已移走木块，夹爪空载</label>
+<p>生成计划后恢复观察姿态再开始。带块验证时把木块放回冻结画面的原位置。每步仍在原确认框批准；失败不自动重试。</p>
+<select id="teachingDraftSelect"></select><pre id="teachingProgress"></pre><div class="scroll"><table><tbody id="teachingSteps"></tbody></table></div>
+<label id="teachingResultLabel"><input id="teachingResultConfirmed" type="checkbox" style="width:auto"> <span id="teachingResultText">本次真实空载和带块验证均已完成，现场确认正确夹持、抬升并放置</span></label>
+<button id="teachingSaveSample">保存成功样本</button><button id="teachingSaveValidation">保存独立验证通过</button><button id="teachingFailValidation">记录该单元验证失败</button>
+</details>
+</details>
+<p><a href="/teaching-guide" style="color:#87b9df" target="_blank">查看操作说明</a></p>
+</section></details></div><details class="panel toolbox"><summary>手动调整关节（确定后会运动）</summary><section class="panel"><h2>机械臂调整 <small id="armMode">连接中</small></h2>
+<p class="muted">输入目标角度，回车或点击该行“确定”立即调整。一次只动一个关节，不要求先读取角度。</p>
+<button id="readJoints">读取角度（可选）</button><div class="scroll"><table><thead><tr><th>关节</th><th>原始读数</th><th>已发送目标</th><th>范围 / 目标°</th><th></th></tr></thead><tbody id="jointRows"></tbody></table></div>
+<label>本次运动时间（500～10000毫秒）<input id="motionTime" type="number" min="500" max="10000" step="1" value="1500"></label>
+<details><summary>保存夹爪开合 / 查看已存姿态（不运动）</summary><label>姿态名称<select id="poseName" style="width:100%;padding:8px"><option value="gripper.open">夹爪张开</option><option value="gripper.closed">夹爪夹持</option></select></label>
+<label>夹爪目标角度（6号，填一个整数）<input id="poseAngles" placeholder="填写已调试的6号目标"></label><button id="previewPose">预览保存参数</button><pre id="savedPoses"></pre></details>
+
+
+</section></details><details class="toolbox"><summary>九点资料与映射设置（已建立时无需重复）</summary><section class="panel" id="cardsPanel"><h2>已有九点定位与关节目标</h2><p>保留观察基准和九点照片、中心、角度、顺序与用时。用已验证的固定位置计算新位置，不需要补拍到位照片或补录抓取角度。</p><label><input id="cardsFitReport" type="checkbox" style="width:auto"> 我已实际验证九个固定位置的抓取，使用卡片中保存的明确目标</label><label><input id="cardsFitScene" type="checkbox" style="width:auto"> 九点拍摄后底座与桌面的相对位置、相机安装未改变</label><button id="cardsFit">用已有九点建立映射（不运动）</button><p id="cardsNotice" role="status"></p><div id="cardsObservation"></div><div id="cardsGrid"></div></section></details><details><summary>姿态工具：管理其他六关节按钮</summary><section class="panel" id="statePanel" style="margin:20px 0"><h2>保存姿态，一键依次到位</h2>
+<p>填写六个目标和执行顺序，分析后保存为按钮。保存不会运动；点击卡片的执行按钮即确认本次六步调整。自动抓取使用已有九点资料；此处保存不要求到位后拍照。</p>
+<label>姿态名称<input id="stateName" placeholder="例如：观察姿态、左上取物上方、左上抓取"></label>
+<div id="stateAngles" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div>
+<label>此按钮的独立顺序（1～6号各一次，含夹爪）<input id="stateOrder" placeholder="例如6,1,2,3,4,5；请按现场路径填写"></label>
+<label>每个关节运动时间（毫秒）<input id="stateTime" type="number" min="500" max="10000" step="1" value="1500"></label>
+<label>对应的标定阶段（只填入，不自动拍照）<select id="stateStage"><option value="">仅作为姿态按钮</option><option value="reference">空桌面观察基准</option><option value="target">观察姿态下的木块</option><option value="transfer">转移姿态</option><option value="place_above">固定放置上方</option><option value="place">固定放置姿态</option><option value="above">本样本取物上方</option><option value="grasp">本样本抓取姿态</option></select></label>
+<button id="stateCopyTargets">填入六个已发送目标</button> <button id="stateAnalyze">分析这些参数（不运动）</button> <button id="stateSave" disabled>保存为姿态按钮（不运动）</button> <button id="stateNew">新建另一个按钮</button>
+<p id="stateAnalysis"></p><p id="stateNotice" role="status"></p><div id="stateButtons"></div>
+</section>
+</details></main><script>
+const el=id=>document.getElementById(id);
+async function api(path,body){const r=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(5000),...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const data=await r.json();if(!r.ok)throw Error(data.error||'服务错误');return data;}
+function cell(row,text){const td=document.createElement('td');td.textContent=text??'—';row.append(td);}
+function autoValues(text){return text.trim()?text.split(',').map(x=>x.trim()===''?null:Number(x.trim())):null;}
+async function autoApi(path,body={}){if(!controlState)throw Error('控制服务尚未连接');const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,csrf:controlState.csrf}),signal:AbortSignal.timeout(60000)});const data=await r.json();if(!r.ok)throw Error(data.error||'服务错误');return data;}
+let streaming=false;
+async function refresh(){try{const s=await api('/status');el('cameraState').textContent=s.connected?s.resolution.join(' × '):'未连接';if(s.connected){if(!streaming){el('video').src='/stream.mjpg?t='+Date.now();streaming=true;}el('video').hidden=false;el('cameraError').hidden=true;}else{streaming=false;el('video').hidden=true;el('cameraError').hidden=false;el('cameraError').textContent=s.message;}}catch(e){el('cameraError').hidden=false;el('cameraError').textContent='摄像头连接中断';}finally{setTimeout(refresh,1000);}}
+el('video').onerror=()=>{streaming=false;};refresh();
+let controlState=null,approval=null,controlPending=false,awaitingRecovery=false;
+function clearApproval(){approval=null;el('approval').hidden=true;el('approveCheck').checked=false;el('executeOnce').disabled=true;el('executeOnce').textContent='确认执行本次计划';el('approveText').textContent='我已核对上述参数、现场条件和停止方式，同意本次操作';}
+function controlDisabled(disabled){for(const node of document.querySelectorAll('#jointRows button,#jointRows input,#readJoints,#previewPose,#poseName,#poseAngles,#motionTime'))node.disabled=disabled;el('executeOnce').disabled=disabled||!approval||!el('approveCheck').checked;if(typeof stateDisabled==='function')stateDisabled();if(typeof cardsDisabled==='function')cardsDisabled();}
+for(let i=1;i<=6;i++){const tr=document.createElement('tr');cell(tr,i===6?'6 夹爪':i===5?'5 摄像头':'ID '+i);cell(tr,'—');cell(tr,'—');const td=document.createElement('td'),range=document.createElement('small'),input=document.createElement('input');range.id='range'+i;input.id='angle'+i;input.type='number';input.step='1';input.placeholder='绝对目标';input.style.minWidth='90px';input.oninput=clearApproval;td.append(range,input);tr.append(td);const action=document.createElement('td'),button=document.createElement('button');button.textContent='确定';button.onclick=()=>directMove(i);input.onkeydown=event=>{if(event.key==='Enter'&&!event.repeat){event.preventDefault();return directMove(i);}};action.append(button);tr.append(action);el('jointRows').append(tr);}
+function renderControl(state){controlState=state;el('taskMode').textContent=state.mode==='real'?'控制模式：实机 · 确认执行后会运动':'控制模式：模拟 · 不驱动设备';el('armMode').textContent=state.mode==='real'?'实机 · 确定即执行':'模拟 · 不驱动设备';for(let i=1;i<=6;i++){const cells=el('jointRows').children[i-1].children,row=state.joints.find(r=>r.id===i),bounds=state.joint_limits[String(i)];cells[1].textContent=row?(row.read_ok?row.angle+'°':row.error):'未读取';cells[2].textContent=state.commanded[String(i)]??'—';el('range'+i).textContent=bounds?bounds.join('～')+'°':'未配置';if(bounds){el('angle'+i).min=bounds[0];el('angle'+i).max=bounds[1];}}
+el('savedPoses').textContent='夹爪张开：'+(state.gripper?.open??'未保存')+'° · 夹爪夹持：'+(state.gripper?.closed??'未保存')+'°';el('armJob').textContent=state.job?((state.job.status==='running'?'正在执行':state.job.status==='completed'?'已完成':state.job.status==='failed'?'执行失败':'结果待核对')+'：'+(state.job.error||state.job.message||'请看现场结果')):'';if(state.busy)clearApproval();controlDisabled(controlPending||state.busy);if(typeof savedStatesRender==='function')savedStatesRender(state);}
+async function controlPost(path,body={}){if(!controlState)throw Error('控制服务尚未连接');return api(path,{...body,csrf:controlState.csrf});}
+async function previewControl(body){clearApproval();controlPending=true;controlDisabled(true);try{approval=await controlPost('/control/preview',body);el('approvalText').textContent=(approval.mode==='real'?'实机':'模拟')+' · '+(body.operation==='save'?'只保存，不运动':'单关节一次运动')+'\n'+JSON.stringify(approval.parameters,null,2)+'\n原始读数：'+approval.joints.map(r=>r.id+': '+r.angle+'°').join('，')+'\n'+approval.conditions+'\n预览有效期120秒；请确认后再执行。';el('executeOnce').textContent=body.operation==='save'?'确认保存参数（不运动）':approval.mode==='real'?'确认调整关节（机械臂运动）':'确认模拟执行（不驱动设备）';el('validationTools').open=true;el('armAudit').textContent=JSON.stringify(approval.audit,null,2);el('approval').hidden=false;el('approval').scrollIntoView({behavior:'smooth',block:'center'});el('armNotice').textContent='尚未执行。核对参数后勾选并确认。';}catch(e){el('armNotice').textContent=e.message;}finally{controlPending=false;controlDisabled(controlState?.busy);}}
+el('readJoints').onclick=async()=>{clearApproval();controlPending=true;controlDisabled(true);try{const r=await controlPost('/control/read');renderControl(r.status);el('armAudit').textContent=JSON.stringify(r.audit,null,2);el('armNotice').textContent=r.status.mode==='real'?'读取完成，未运动':'模拟读数，不能用于实机姿态保存';}catch(e){el('armNotice').textContent=e.message;}finally{controlPending=false;controlDisabled(controlState?.busy);}};
+el('previewPose').onclick=()=>previewControl({operation:'save',name:el('poseName').value,angles:el('poseAngles').value.trim()?el('poseAngles').value.split(',').map(v=>v.trim()===''?null:Number(v.trim())):[]});
+for(const id of ['poseName','poseAngles','motionTime'])el(id).oninput=clearApproval;
+el('approveCheck').onchange=()=>controlDisabled(controlPending||controlState?.busy);el('cancelApproval').onclick=clearApproval;
+el('executeOnce').onclick=async()=>{if(!approval||!el('approveCheck').checked)return;const token=approval.token;clearApproval();controlPending=true;controlDisabled(true);try{const r=await controlPost('/control/execute',{token,confirmed:true});el('armJob').textContent=JSON.stringify(r.job,null,2);el('armNotice').textContent='请求已接收，等待状态。请现场观察。';}catch(e){el('armNotice').textContent='请求未确认：'+e.message+'。不重发；正在查询状态，请勿再次操作。';}finally{try{renderControl(await api('/control/status'));controlPending=false;controlDisabled(controlState.busy);}catch(e){awaitingRecovery=true;el('armNotice').textContent+=' 状态暂不可用，操作保持禁用。';}}};
+async function pollControl(){try{const state=await api('/control/status');if(controlState&&controlState.csrf!==state.csrf)clearApproval();renderControl(state);if(awaitingRecovery&&!state.busy){awaitingRecovery=false;controlPending=false;controlDisabled(false);}}catch(e){controlDisabled(true);el('armNotice').textContent='控制连接中断：'+e.message+'。页面不能停止已发出的运动。';clearApproval();}finally{setTimeout(pollControl,1000);}}pollControl();
+
+async function directMove(joint){
+ if(controlPending||awaitingRecovery||controlState?.busy||!controlState)return;
+ const angle=el('angle'+joint).value.trim(),time=el('motionTime').value.trim(),bounds=controlState.joint_limits[String(joint)];
+ if(!angle||!time||!Number.isInteger(Number(angle))||!Number.isInteger(Number(time))||!bounds||Number(angle)<bounds[0]||Number(angle)>bounds[1]||Number(time)<500||Number(time)>10000){el('armNotice').textContent='请输入范围内的整数角度，时间为500～10000毫秒';return;}
+ clearApproval();controlPending=true;controlDisabled(true);if(typeof teachingDisabled==='function')teachingDisabled();
+ const bytes=crypto.getRandomValues(new Uint8Array(16)),request_id=Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
+ el('armNotice').textContent='正在调整 ID '+joint+' → '+angle+'°，'+time+'毫秒';
+ try{const r=await controlPost('/control/move',{request_id,joint,angle:Number(angle),motion_ms:Number(time),confirmed:true});el('armAudit').textContent=JSON.stringify(r.job.audit,null,2);el('armNotice').textContent='已接收本次调整，请看现场结果。';}
+ catch(e){el('armNotice').textContent='请求结果待核对：'+e.message+'。不重发，正在查询状态。';awaitingRecovery=true;}
+ finally{try{renderControl(await api('/control/status'));if(!awaitingRecovery)controlPending=false;controlDisabled(controlPending||controlState.busy);}catch(e){awaitingRecovery=true;el('armNotice').textContent+=' 状态不可用，暂时禁用操作。';}if(typeof teachingDisabled==='function')teachingDisabled();}
+}
+</script><script src="/teaching_ui.js"></script><script src="/state_ui.js"></script><script src="/cards_ui.js"></script></html>

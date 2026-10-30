@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "model_reviewed": false,
+  "calibration_reviewed": false,
+  "arm_config_sha256": null,
+  "scene_revision": null,
+  "observation_angles": null,
+  "observation_readings": null,
+  "grasp_reference_angles": null,
+  "table_z_mm": -16.0,
+  "block_size_mm": [
+    30,
+    30,
+    30
+  ],
+  "block_size_id": "block",
+  "jaw_open_width_mm": null,
+  "max_position_error_mm": null,
+  "max_direction_error_deg": null,
+  "grasp_height_mm": null,
+  "transfer_height_mm": null,
+  "release_gap_mm": null,
+  "workspace_xy_mm": null,
+  "motion_bounds_mm": null,
+  "obstacles": [],
+  "destinations": {},
+  "camera": {
+    "matrix": null,
+    "distortion": null,
+    "image_size": [
+      640,
+      480
+    ],
+    "samples": [],
+    "base_to_camera": null,
+    "anchor_frame": null,
+    "intrinsics_certificate": null
+  },
+  "board": {
+    "points_mm": [
+      [
+        -15,
+        0
+      ],
+      [
+        0,
+        15
+      ],
+      [
+        15,
+        0
+      ],
+      [
+        0,
+        -15
+      ]
+    ],
+    "origin_in_base_mm": null,
+    "yaw_deg": null,
+    "anchor_pixels": []
+  },
+  "checks": [],
+  "path_validations": [],
+  "cad": null,
+  "model": {
+    "urdf_sha256": "9e0e66c68a08f3e2318bf2256f63a8132f21ded68efc0cc3933707e393ce091e",
+    "servo_zero_deg": [
+      90,
+      90,
+      90,
+      90,
+      90
+    ],
+    "servo_sign": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "tcp_xyz_mm": null,
+    "tcp_rpy_deg": null,
+    "jaw_axis_tcp": null,
+    "collision_radii_mm": null,
+    "tool_radius_mm": null,
+    "tool_boxes_mm": null,
+    "measurements": [],
+    "independent_measurements": [],
+    "base_box_mm": null
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "model_reviewed": false,
+  "calibration_reviewed": false,
+  "path_reviewed": false,
+  "arm_config_sha256": null,
+  "camera": {
+    "matrix": null,
+    "distortion": null,
+    "image_size": [
+      640,
+      480
+    ],
+    "samples": [],
+    "anchor_frame": null
+  },
+  "marks": {
+    "pixels": null,
+    "xy_mm": null
+  },
+  "check_point": {
+    "pixel": null,
+    "xy_mm": null
+  },
+  "height_checks": [],
+  "observation_angles": null,
+  "observation_readings": null,
+  "grasp_reference_angles": null,
+  "table_z_mm": null,
+  "block_size_mm": null,
+  "jaw_open_width_mm": null,
+  "max_position_error_mm": null,
+  "grasp_height_mm": null,
+  "transfer_height_mm": null,
+  "release_gap_mm": null,
+  "yellow_xy_mm": null,
+  "model": {
+    "urdf_sha256": "9e0e66c68a08f3e2318bf2256f63a8132f21ded68efc0cc3933707e393ce091e",
+    "servo_zero_deg": [
+      90,
+      90,
+      90,
+      90,
+      90
+    ],
+    "servo_sign": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "tcp_xyz_mm": null,
+    "tcp_rpy_deg": null,
+    "collision_radii_mm": null,
+    "tool_radius_mm": null,
+    "tool_boxes_mm": null,
+    "measurements": []
+  }
+}

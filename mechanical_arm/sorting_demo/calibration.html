@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>相机标定</title><style>
+*{box-sizing:border-box}body{margin:0;background:#101923;color:#eaf1f8;font:15px/1.6 system-ui,sans-serif}main{max-width:1280px;margin:24px auto;padding:0 20px}h1{margin:0;font-size:28px}h2{font-size:20px}a{color:#97c7ff}header{display:flex;align-items:center;justify-content:space-between;gap:16px}.panel{background:#182534;border:1px solid #344b63;border-radius:12px;padding:20px;margin:18px 0}.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:20px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{display:block;margin:10px 0}button,input,select{font:inherit;border-radius:6px}button{padding:10px 16px;border:0;background:#397bd0;color:white;cursor:pointer;margin:5px 5px 5px 0}button.secondary{background:#344b63}button:disabled{opacity:.45;cursor:default}input,select{width:100%;padding:8px;background:#101923;color:#eaf1f8;border:1px solid #49607a}input[type=checkbox]{width:auto}.muted{color:#acbfd3}.hint{border-left:3px solid #70dcb0;padding-left:12px;white-space:pre-wrap}#cNotice{white-space:pre-wrap;color:#ffcf85}#cCamera,canvas{width:100%;background:#09121c;border-radius:8px}canvas{cursor:crosshair;touch-action:none}table{width:100%;border-collapse:collapse}td,th{padding:7px;border-bottom:1px solid #344b63;text-align:left;font-size:13px}.scroll{overflow:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;font-size:13px}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}}
+#cJointTable{min-width:510px}#cJointTable td,#cJointTable th{padding:6px 4px}#cJointTable input{min-width:68px;padding:6px}#cJointTable button{padding:7px 9px;margin:0}#cJointTable small{display:block}#cManualStatus{white-space:pre-wrap;color:#ffcf85}#cManualPanel{border-bottom:1px solid #344b63;padding-bottom:14px;margin-bottom:18px}
+</style></head><body><main>
+<header><h1>相机标定</h1><nav><a href="/manipulation">返回框选抓放</a> · <a href="/">手动调整</a></nav></header>
+<p class="muted">准备标定板 → 镜头标定 → 随臂标定 → 独立位置检查。采集和计算不运动；关节区的回车或“确定”会执行该次明确调整。</p>
+<p id="cConnection">正在连接…</p><p id="cNotice" role="status"></p>
+<section class="panel"><h2>1．选择阶段与资料批次</h2>
+<p>使用已打印的 A4 ChArUco：9×6格，每格20毫米，编码14毫米，DICT_4X4_100。</p>
+<div class="fields"><label>阶段<select id="cKind"><option value="intrinsics">① 镜头内参：机械臂不动，手持板改变位置和倾角</option><option value="hand_eye">② 随臂相机：板固定，人工调整机械臂后采集</option><option value="position">③ 独立位置检查：移走板，测量桌面点与顶面中心</option></select></label><label>已保存批次<select id="cSession"></select></label></div>
+<p id="cGuide" class="hint"></p>
+<p id="cCreateHelp" class="hint"></p>
+<details id="cCreate" open><summary>创建新批次</summary><div id="cBoardFields"><div class="fields"><label>水平校验尺实测长度（毫米）<input id="cRulerX" type="number" step="0.1" placeholder="实测应接近100"></label><label>竖直校验尺实测长度（毫米）<input id="cRulerY" type="number" step="0.1" placeholder="实测应接近100"></label></div>
+<label><input id="cBoardReady" type="checkbox"> 已核对尺寸与版本，标定纸已贴平整硬板、无反光</label>
+<label id="cFixedLabel" hidden><input id="cBoardFixed" type="checkbox"> 本批随臂采集期间，标定板固定不动（若板移动，另建批次）</label></div>
+<button id="cNew">创建本阶段批次（不运动）</button></details>
+<button id="cGoHandEye" class="secondary" hidden>前往随臂结果，核对并采用（不运动）</button>
+<p id="cCreateStatus" role="status" aria-live="polite" class="hint"></p>
+<button id="cRefresh" class="secondary">刷新保存状态</button><button id="cExport" class="secondary">导出标定资料 JSON</button>
+</section>
+<div class="grid"><section class="panel"><h2>2．采集与检查原图</h2>
+<img id="cCamera" alt="机械臂原相机实时画面"><canvas id="cImage" width="640" height="480" hidden aria-label="已冻结原图：点击独立实测位置"></canvas>
+<button id="cCapture">采集并识别（不运动）</button><button id="cLive" class="secondary">查看实时画面</button>
+<p id="cPickStatus" class="hint" role="status" hidden></p><p id="cPointer" class="muted" hidden></p>
+<p id="cQuality" class="hint">创建或选择批次，再采集一张试拍。</p><p id="cFrameInfo" class="muted"></p><a id="cOriginal" hidden download>下载此原图</a>
+<div id="cSampleActions"><button id="cFit">加入拟合组</button><button id="cCheck">加入独立检查组</button>
+<p class="muted">检查组不参与求解；不要在看过结果后把检查样本改成拟合样本。失败记录和原图保留。</p></div>
+<div id="cPositionFields" hidden><p>先创建或选择本阶段批次 → 采集并冻结原图 → 在冻结图点选实测位置。实时画面上点击只会请求冻结，不会把旧画面的点击当作检查点。XYZ必须来自独立实物测量。</p>
+<p id="cTableHeightSummary" class="hint"></p>
+<label>检查位置<select id="cPointKind"><option value="table">桌面点</option><option value="top">方块顶面中心</option></select></label>
+<div class="fields"><div><label>选中点的原图像素 u,v（可复制或手填）<input id="cPixel" placeholder="例如 320,240" aria-describedby="cPickStatus"></label><button id="cSetPixel" class="secondary">采用手填像素（不运动）</button></div><label>独立实测底座 X,Y,Z（毫米）<input id="cActual" placeholder="独立实测X,Y,Z，英文逗号分隔"></label></div>
+<label><input id="cMeasured" type="checkbox"> 我确认像素与XYZ对应同一个独立实测点，当前点及方块未移动</label><p id="cPointSaveHelp" class="hint"></p><button id="cRecordPoint">保存这个检查点（不运动）</button><p id="cPointSaveStatus" class="hint" role="status" aria-live="polite"></p>
+<details><summary>真实XYZ怎么量？查看底座坐标说明</summary>
+<p>坐标单位均为毫米。俯视模型底座：原点的XY投影在1号底座回转轴中心；机身长尾部向−Y，越过回转轴、朝短端为+Y。站在长尾侧朝短端看，右手侧为+X；+Z竖直向上。先将实物朝向与模型核对，坐标不会跟着相机转。</p>
+<svg viewBox="0 0 380 250" role="img" aria-label="底座俯视示意：机身长尾向负Y，短端向正Y，正X向右，正Z朝上方" style="max-width:380px;width:100%;background:#101923;border-radius:8px">
+<rect x="105" y="60" width="110" height="170" fill="#344b63" stroke="#acbfd3"/><circle cx="160" cy="100" r="25" fill="#182534" stroke="#acbfd3"/>
+<path d="M160 100V20m0 0-6 10m6-10 6 10" stroke="#70dcb0" stroke-width="3" fill="none"/><path d="M160 100H330m0 0-10-6m10 6-10 6" stroke="#ffcf85" stroke-width="3" fill="none"/>
+<circle cx="160" cy="100" r="5" fill="#97c7ff"/><g fill="#eaf1f8" font-size="14"><text x="180" y="30">+Y 短端前方</text><text x="285" y="85">+X 右侧</text><text x="112" y="205">−Y 长尾</text><text x="235" y="145">O：回转轴投影</text><text x="235" y="170">+Z：竖直向上</text></g></svg>
+<p>X、Y是从回转轴在桌面的投影沿两条互相垂直轴线量到目标的有符号距离，不是从底座边缘量，也不是到原点的直线距离。用直角尺画轴线，目标在+X/+Y侧取正，相反取负。</p>
+<p>Z=0是模型base_link原点。当前现场已确认：蓝圈圆形安装板上表面在模型中Z约80毫米，从灰色桌面实测到该面80毫米，因此灰色桌面Z约为80−80=0。64毫米是关节原点，不是蓝圈表面。桌面点填Z=0，放在灰桌面上的30毫米高方块顶面填Z=30；到转盘表面的80毫米不能直接填成−80。若换到设备箱黑色台面，应另外加上该台面离灰色桌面的实测高度。</p>
+<p>方块顶面中心应点顶面中心，量其桌面投影的X、Y及顶面高度h。例：独立测得X=40、Y=180，30毫米方块放在灰桌面，则填写40,180,30。至少保存3个不共线桌面位置及3个分散顶面中心；同一个坐标重复拍摄不增加不同位置数量。误差超限的记录也会保存，不能把系统算出的XYZ反填为实测值。</p>
+</details></div>
+</section><section class="panel">
+<details id="cManualPanel"><summary>关节数值调整（随臂标定时使用）</summary>
+<p id="cManualMode" class="hint">正在读取控制状态…</p>
+<p class="muted">先观察现场和相机画面，填写单个关节的目标角度与用时；点击该行“确定”或在该行按回车，就是这一次移动的确认。无需预先读取角度。角度范围只检查数值，手动调整仍需你观察路径、桌面与线缆。</p>
+<button id="cReadJoints" class="secondary">读取六关节角度（不运动）</button>
+<div class="scroll"><table id="cJointTable"><thead><tr><th>关节</th><th>最近回读 / 下发</th><th>允许范围</th><th>本次目标 °</th><th>用时 ms</th><th>确认</th></tr></thead><tbody>
+<tr><td>1号</td><td><span id="cReadback1">未读取</span><small id="cCommand1" class="muted"></small></td><td id="cRange1">未配置</td><td><input id="cAngle1" type="number" step="1" placeholder="目标" aria-label="1号关节目标角度"></td><td><input id="cMoveTime1" type="number" min="500" max="10000" step="100" value="1500" aria-label="1号关节用时毫秒"></td><td><button id="cMove1">确定</button></td></tr>
+<tr><td>2号</td><td><span id="cReadback2">未读取</span><small id="cCommand2" class="muted"></small></td><td id="cRange2">未配置</td><td><input id="cAngle2" type="number" step="1" placeholder="目标" aria-label="2号关节目标角度"></td><td><input id="cMoveTime2" type="number" min="500" max="10000" step="100" value="1500" aria-label="2号关节用时毫秒"></td><td><button id="cMove2">确定</button></td></tr>
+<tr><td>3号</td><td><span id="cReadback3">未读取</span><small id="cCommand3" class="muted"></small></td><td id="cRange3">未配置</td><td><input id="cAngle3" type="number" step="1" placeholder="目标" aria-label="3号关节目标角度"></td><td><input id="cMoveTime3" type="number" min="500" max="10000" step="100" value="1500" aria-label="3号关节用时毫秒"></td><td><button id="cMove3">确定</button></td></tr>
+<tr><td>4号</td><td><span id="cReadback4">未读取</span><small id="cCommand4" class="muted"></small></td><td id="cRange4">未配置</td><td><input id="cAngle4" type="number" step="1" placeholder="目标" aria-label="4号关节目标角度"></td><td><input id="cMoveTime4" type="number" min="500" max="10000" step="100" value="1500" aria-label="4号关节用时毫秒"></td><td><button id="cMove4">确定</button></td></tr>
+<tr><td>5号</td><td><span id="cReadback5">未读取</span><small id="cCommand5" class="muted"></small></td><td id="cRange5">未配置</td><td><input id="cAngle5" type="number" step="1" placeholder="目标" aria-label="5号关节目标角度"></td><td><input id="cMoveTime5" type="number" min="500" max="10000" step="100" value="1500" aria-label="5号关节用时毫秒"></td><td><button id="cMove5">确定</button></td></tr>
+<tr><td>6夹爪</td><td><span id="cReadback6">未读取</span><small id="cCommand6" class="muted"></small></td><td id="cRange6">未配置</td><td><input id="cAngle6" type="number" step="1" placeholder="目标" aria-label="6号夹爪目标角度"></td><td><input id="cMoveTime6" type="number" min="500" max="10000" step="100" value="1500" aria-label="6号夹爪用时毫秒"></td><td><button id="cMove6">确定</button></td></tr>
+</tbody></table></div>
+<p id="cManualStatus" role="status">尚未提交调整。最近下发值不代表真实回读。</p>
+<button id="cRecoverMove" class="secondary" hidden>已核对现场，恢复操作（不重发）</button>
+<p class="muted">调整结束并停稳后，再点击“采集并识别”。随臂采集仍要求前后两次完整六关节读数一致。5号变化不改变link4相机姿态；本区不切换扭矩。</p>
+</details>
+<h2>3．样本与结果</h2><p id="cCounts"></p>
+<div class="scroll"><table id="cSampleTable"><thead><tr id="cSamplesHeader"><th>分组</th><th>原图</th><th>角点 / 误差</th><th>操作</th></tr></thead><tbody id="cSamples"></tbody></table></div>
+<div id="cPositionTools" hidden><details id="cExcludedPanel" hidden><summary id="cExcludedSummary">已移出记录（保留历史）</summary><pre id="cExcludedPoints"></pre></details>
+<div class="fields"><label>本批位置检查门槛（毫米）<input id="cPositionLimit" type="number" min="0.1" step="0.1" value="5"></label><label>采用的检查范围<select id="cPositionScope"><option value="table">仅桌面定位</option><option value="table_and_top">桌面与方块顶面定位</option></select></label></div>
+<p class="muted">此门槛只用于本批独立检查，不修改逆解、路径或关节限制。点击采用只记录所选范围的结果，不运动。</p><button id="cAdoptPosition">确认采用本批所选范围的检查结果（不运动）</button>
+<p id="cPositionActionStatus" class="hint" role="status"></p><p id="cPositionResult" class="hint"></p></div>
+<button id="cSolve">计算本批参数（不运动）</button>
+<label>本阶段已保存结果<select id="cSolution"></select></label><pre id="cResult">尚未计算。</pre>
+<details><summary>查看参数矩阵与原图证据编号</summary><pre id="cRawResult"></pre></details>
+<div id="cApplyPanel"><label><input id="cApplyConfirmed" type="checkbox"> 我已核对结果并采用这些参数；真实空间精度与抓取效果仍待验证</label>
+<p class="muted">采用新内参会撤销旧手眼结果并恢复CAD安装候选，须重新做随臂标定。重新生成模型候选会保留已采用的标定。</p>
+<div id="cTableFields" hidden><p class="hint">采用随臂相机参数不要求标定板水平，也不需要勾选下面的高度估算。默认保留现有桌面高度；高度仍需按独立测量单独核对。</p>
+<p id="cTableDiagnostic" class="muted"></p><details><summary>可选：同时用这批板面估算桌面高度</summary>
+<p>只在确实需要用板面推算桌面高度时启用。检查的是软件算出的四角高度差，不是判定你有没有把板放平；模型与关节误差也会造成倾斜。该选项失败时，可取消它再单独采用随臂参数。</p>
+<label><input id="cOnTable" type="checkbox"> 我另外要求按拟合板面估算桌面高度，并确认板平放在实际工作台上</label><label>纸张与底板总厚度（毫米）<input id="cThickness" type="number" min="0" max="30" step="0.1" placeholder="实测厚度"></label>
+<button id="cKeepTable" class="secondary">取消高度估算，保留现有桌面高度（不运动）</button></details></div>
+<button id="cApply">采用选中结果用于抓放（不运动）</button><p id="cApplyStatus" class="hint" role="status" aria-live="polite"></p></div>
+<p id="cAdopted" class="hint"></p>
+</section></div>
+<section class="panel"><h2>现场操作顺序</h2><ol><li>镜头阶段：保持机械臂不动，移动、倾斜板。拟合组至少10幅，另采至少3幅检查图。覆盖上下左右和两个倾斜方向。</li><li>采用通过检查的真实内参。若尚无模型参数，先去抓放页生成模型定位参数，再回此页采用。</li><li>随臂阶段：固定标定板；使用画面旁的关节数值区逐关节确认调整。停稳后重新采集，不要只转5号夹爪。拟合组至少8幅，另采至少3幅检查图；不会自动执行采集轨迹。</li><li>采用随臂结果后，分别检查至少3个分散桌面点和3个方块顶面中心。毫米误差不合格时保留记录、查明原因；标定通过也不等于抓取成功。</li></ol></section>
+</main><script src="/calibration_ui.js"></script></body></html>

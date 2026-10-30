@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "units": "mm",
+  "source": "用户在2026-10-16对话中提供；不是助手独立实测",
+  "block_size_mm": [30, 30, 30],
+  "cross_total_size_mm": [30, 30],
+  "cross_line_width_mm": 2,
+  "gripper_mechanical_opening_mm": {"min": 0, "max": 60},
+  "gripper_angle_direction": "角度减小则张开增大；角度增大则闭合",
+  "gripper_angle_opening_samples": [
+    {"angle_deg": 10, "opening_mm": 60, "approximate": false},
+    {"angle_deg": 170, "opening_mm": 0, "approximate": true}
+  ],
+  "opening_at_configured_open_angle_mm": null,
+  "joint1_center_height_above_table_mm": 80,
+  "height_reference": "底座上第一个转动关节的中心，不是底座顶面或底面",
+  "user_setup_preferences": {
+    "physical_assembly_matches_model": "用户确认实物安装与三维模型一致",
+    "use_cross_paper": false,
+    "prefer_model_derived_geometry": true,
+    "note": "记录用户要求，不表示相机光学参数已知或现场精度已验证"
+  },
+  "camera_hardware": {
+    "user_report": "课程配套原装USB相机，未更换镜头",
+    "course_resolution": [640, 480],
+    "course_fov_deg": 110,
+    "course_fov_axis": null,
+    "camera_matrix_available": false,
+    "distortion_available": false,
+    "note": "原配身份已确认；课程资料未注明视场角方向，也未提供内参或畸变系数"
+  },
+  "notes": [
+    "用户已提供10度对应60毫米、170度基本闭合；两端点不足以证明整个传动关系线性，不自动插值生成抓取角度。",
+    "机械最大开口60毫米不证明当前配置张开角度已经达到60毫米。",
+    "最小开口0毫米不表示舵机目标角度为0度。",
+    "桌面坐标由课程URDF的joint1原点高度减去用户报告的80毫米计算；须以实物定位误差检查核对。"
+  ]
+}

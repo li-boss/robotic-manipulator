@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "baseline": null,
+  "common": {},
+  "orders": {"观察到转移": null, "转移到取物上方": null, "下降抓取": null, "抬升木块": null, "取物上方到转移": null, "转移到放置上方": null, "下降放置": null, "离开放置点": null, "放置上方到转移": null, "返回观察": null},
+  "samples": [],
+  "fit": null,
+  "validations": [],
+  "arm_config_sha256": null,
+  "reference_verified": false
+}

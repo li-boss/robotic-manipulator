@@ -1,0 +1,20 @@
+[
+  {
+    "file": "dofbot.urdf",
+    "source": "https://gitee.com/api/v5/repos/HUAWEI-ASCEND/ascend-devkit/contents/src/E2E-Sample/ros2_robot_arm/ros2_ws/src/dofbot_moveit/urdf/dofbot.urdf?ref=9d10827572019127aa2956a58f0b570e3c8cd99b",
+    "git_sha": "349ae1abf28789cecce833f3596434824de0474e",
+    "sha256": "9e0e66c68a08f3e2318bf2256f63a8132f21ded68efc0cc3933707e393ce091e"
+  },
+  {
+    "file": "dofbot_server.cpp",
+    "source": "https://gitee.com/api/v5/repos/HUAWEI-ASCEND/ascend-devkit/contents/src/E2E-Sample/ros2_robot_arm/ros2_ws/src/dofbot_moveit/src/dofbot_server.cpp?ref=9d10827572019127aa2956a58f0b570e3c8cd99b",
+    "git_sha": "37fd07281e73cc08a4bd8a2dd16a4130c92262cb",
+    "sha256": "a384a477763ef3e9533214b2478e51ef136923ba1c09d62eefd772efdac1f638"
+  },
+  {
+    "file": "server_param.yaml",
+    "source": "https://gitee.com/api/v5/repos/HUAWEI-ASCEND/ascend-devkit/contents/src/E2E-Sample/ros2_robot_arm/ros2_ws/src/dofbot_moveit/config/server_param.yaml?ref=9d10827572019127aa2956a58f0b570e3c8cd99b",
+    "git_sha": "9536a460a5257ed6cd12adc8a6e322391a4af9b9",
+    "sha256": "58930b29edc6113912d9bf753d2625315840a843a9c97f23e1256a53e3563ada"
+  }
+]

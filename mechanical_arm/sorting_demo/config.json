@@ -1,0 +1,15 @@
+{
+  "roi": null,
+  "vision_reviewed": false,
+  "min_area": 400,
+  "min_color_fraction": 0.65,
+  "colors": {
+    "yellow": [[20, 80, 60], [38, 255, 255]],
+    "blue": [[90, 80, 60], [130, 255, 255]],
+    "green": [[40, 80, 60], [85, 255, 255]],
+    "red": [[0, 80, 60], [10, 255, 255]]
+  },
+  "color_targets": {"yellow": "yellow"},
+  "verified_paths": [],
+  "max_detection_age_ms": 3000
+}
