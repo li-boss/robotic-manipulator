@@ -1,0 +1,13 @@
+{
+  "status": "confirmed_by_user_on_2026-10-21",
+  "purpose": "外观积木种类，不是四类垃圾业务类别",
+  "proposed_order": [
+    "block_blue",
+    "block_green",
+    "block_red",
+    "block_yellow"
+  ],
+  "business_category_mapping": {},
+  "annotation_target": "visible_whole_block",
+  "notes": "用户已确认按四种顶面颜色标注积木外观；侧面图案不单独成类，四类垃圾业务映射仍待确认。"
+}

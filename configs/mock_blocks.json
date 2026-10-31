@@ -1,0 +1,5 @@
+{
+  "boxes": [
+    {"label": "blue_block", "confidence": 0.91, "bbox": [220, 180, 400, 350]}
+  ]
+}

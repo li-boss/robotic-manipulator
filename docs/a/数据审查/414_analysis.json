@@ -1,0 +1,299 @@
+{
+  "image": "414.jpg",
+  "coordinate_space": "raw_camera",
+  "gt_count": 4,
+  "prediction_count": 10,
+  "confidence": 0.25,
+  "nms_iou": 0.5,
+  "ground_truth": [
+    {
+      "class_id": 1,
+      "raw_label": "block_green",
+      "bbox_xyxy_raw_camera": [
+        5.0,
+        168.99983999999995,
+        187.0,
+        402.99984
+      ]
+    },
+    {
+      "class_id": 0,
+      "raw_label": "block_blue",
+      "bbox_xyxy_raw_camera": [
+        311.00032,
+        48.0,
+        508.0,
+        279.0
+      ]
+    },
+    {
+      "class_id": 2,
+      "raw_label": "block_red",
+      "bbox_xyxy_raw_camera": [
+        89.99967999999998,
+        7.00008,
+        291.0,
+        243.00024000000002
+      ]
+    },
+    {
+      "class_id": 3,
+      "raw_label": "block_yellow",
+      "bbox_xyxy_raw_camera": [
+        195.00032,
+        184.00008,
+        400.0,
+        430.99992
+      ]
+    }
+  ],
+  "predictions": [
+    {
+      "prediction_index": 1,
+      "raw_label": "block_yellow",
+      "confidence": 0.8018198013305664,
+      "bbox_xyxy_raw_camera": [
+        0.0,
+        173.9261474609375,
+        193.7026824951172,
+        396.25091552734375
+      ],
+      "closest_gt": {
+        "gt_index": 1,
+        "gt_label": "block_green",
+        "iou": 0.8954036356911321
+      }
+    },
+    {
+      "prediction_index": 2,
+      "raw_label": "block_yellow",
+      "confidence": 0.7932946085929871,
+      "bbox_xyxy_raw_camera": [
+        185.98477172851562,
+        194.4240264892578,
+        397.3078308105469,
+        358.36846923828125
+      ],
+      "closest_gt": {
+        "gt_index": 4,
+        "gt_label": "block_yellow",
+        "iou": 0.6364483352393044
+      }
+    },
+    {
+      "prediction_index": 3,
+      "raw_label": "block_red",
+      "confidence": 0.6992371678352356,
+      "bbox_xyxy_raw_camera": [
+        310.64678955078125,
+        48.073150634765625,
+        513.4573364257812,
+        285.2957763671875
+      ],
+      "closest_gt": {
+        "gt_index": 2,
+        "gt_label": "block_blue",
+        "iou": 0.9452860362102388
+      }
+    },
+    {
+      "prediction_index": 4,
+      "raw_label": "block_blue",
+      "confidence": 0.6504178643226624,
+      "bbox_xyxy_raw_camera": [
+        93.99515533447266,
+        5.0539398193359375,
+        289.6752624511719,
+        245.21742248535156
+      ],
+      "closest_gt": {
+        "gt_index": 3,
+        "gt_label": "block_red",
+        "iou": 0.9570939534639629
+      }
+    },
+    {
+      "prediction_index": 5,
+      "raw_label": "block_red",
+      "confidence": 0.5523241758346558,
+      "bbox_xyxy_raw_camera": [
+        180.5341339111328,
+        193.8168487548828,
+        397.04388427734375,
+        430.45428466796875
+      ],
+      "closest_gt": {
+        "gt_index": 4,
+        "gt_label": "block_yellow",
+        "iou": 0.8844381330599106
+      }
+    },
+    {
+      "prediction_index": 6,
+      "raw_label": "block_blue",
+      "confidence": 0.4349690079689026,
+      "bbox_xyxy_raw_camera": [
+        309.804931640625,
+        48.17193603515625,
+        512.5238037109375,
+        284.07489013671875
+      ],
+      "closest_gt": {
+        "gt_index": 2,
+        "gt_label": "block_blue",
+        "iou": 0.9502088610711813
+      }
+    },
+    {
+      "prediction_index": 7,
+      "raw_label": "block_red",
+      "confidence": 0.3728984296321869,
+      "bbox_xyxy_raw_camera": [
+        95.63306427001953,
+        5.5810089111328125,
+        291.071533203125,
+        243.64559936523438
+      ],
+      "closest_gt": {
+        "gt_index": 3,
+        "gt_label": "block_red",
+        "iou": 0.9634358535334477
+      }
+    },
+    {
+      "prediction_index": 8,
+      "raw_label": "block_yellow",
+      "confidence": 0.35453006625175476,
+      "bbox_xyxy_raw_camera": [
+        346.59564208984375,
+        66.50836181640625,
+        512.2915649414062,
+        254.41854858398438
+      ],
+      "closest_gt": {
+        "gt_index": 2,
+        "gt_label": "block_blue",
+        "iou": 0.654876398793597
+      }
+    },
+    {
+      "prediction_index": 9,
+      "raw_label": "block_yellow",
+      "confidence": 0.28640541434288025,
+      "bbox_xyxy_raw_camera": [
+        114.63900756835938,
+        6.1134490966796875,
+        285.74365234375,
+        223.64047241210938
+      ],
+      "closest_gt": {
+        "gt_index": 3,
+        "gt_label": "block_red",
+        "iou": 0.7789426326308768
+      }
+    },
+    {
+      "prediction_index": 10,
+      "raw_label": "block_red",
+      "confidence": 0.25108715891838074,
+      "bbox_xyxy_raw_camera": [
+        149.04608154296875,
+        41.103424072265625,
+        512.9710083007812,
+        435.4044494628906
+      ],
+      "closest_gt": {
+        "gt_index": 4,
+        "gt_label": "block_yellow",
+        "iou": 0.3528662688568733
+      }
+    }
+  ],
+  "prediction_overlap_pairs_iou_ge_0_5": [
+    {
+      "prediction_pair": [
+        2,
+        5
+      ],
+      "iou": 0.6747971607198731,
+      "type": "different_class",
+      "labels": [
+        "block_yellow",
+        "block_red"
+      ]
+    },
+    {
+      "prediction_pair": [
+        3,
+        6
+      ],
+      "iou": 0.9857904080074847,
+      "type": "different_class",
+      "labels": [
+        "block_red",
+        "block_blue"
+      ]
+    },
+    {
+      "prediction_pair": [
+        3,
+        8
+      ],
+      "iou": 0.6471657151832506,
+      "type": "different_class",
+      "labels": [
+        "block_red",
+        "block_yellow"
+      ]
+    },
+    {
+      "prediction_pair": [
+        4,
+        7
+      ],
+      "iou": 0.9760595983883943,
+      "type": "different_class",
+      "labels": [
+        "block_blue",
+        "block_red"
+      ]
+    },
+    {
+      "prediction_pair": [
+        4,
+        9
+      ],
+      "iou": 0.7919930412206058,
+      "type": "different_class",
+      "labels": [
+        "block_blue",
+        "block_yellow"
+      ]
+    },
+    {
+      "prediction_pair": [
+        6,
+        8
+      ],
+      "iou": 0.6510803464439868,
+      "type": "different_class",
+      "labels": [
+        "block_blue",
+        "block_yellow"
+      ]
+    },
+    {
+      "prediction_pair": [
+        7,
+        9
+      ],
+      "iou": 0.799963479275282,
+      "type": "different_class",
+      "labels": [
+        "block_red",
+        "block_yellow"
+      ]
+    }
+  ],
+  "note": "IoU is diagnostic; these predictions are not reviewed labels."
+}

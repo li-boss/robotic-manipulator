@@ -1,0 +1,24 @@
+{
+  "trial20": {
+    "human_reviewed_images": 20,
+    "counts": {
+      "block_blue": 10,
+      "block_green": 10,
+      "block_red": 12,
+      "block_yellow": 9
+    }
+  },
+  "remaining186": {
+    "total": 186,
+    "human_reviewed_images": 186,
+    "pending_images": 0,
+    "confirmed_counts": {
+      "block_blue": 106,
+      "block_green": 104,
+      "block_red": 116,
+      "block_yellow": 105
+    }
+  },
+  "warning": "blank per-class cells mean UNANNOTATED/UNKNOWN, not zero objects; rough sequences are not final data splits",
+  "csv": "docs\\a\\数据审查\\剩余186标注进度.csv"
+}
