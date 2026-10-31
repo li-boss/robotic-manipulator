@@ -32,7 +32,8 @@ def draw_hand_boxes(frame, prediction):
                     cv2.FONT_HERSHEY_SIMPLEX,.5,HAND_COLOR,1)
 
 
-def draw_combined_overlay(frame, record, *, smile_threshold=DEFAULT_SMILE_THRESHOLD, gesture_threshold=.8):
+def draw_combined_overlay(frame, record, *, smile_threshold=DEFAULT_SMILE_THRESHOLD,
+                          gesture_threshold=.8, robot_connected=False):
     import cv2
     face, hand = record["smile"],record["gesture"]
     box = face.get("face_box")
@@ -50,7 +51,7 @@ def draw_combined_overlay(frame, record, *, smile_threshold=DEFAULT_SMILE_THRESH
             (f"Hand: {hand['raw_label']} {hand['confidence']:.2f} / {gesture_threshold:.2f}",HAND_COLOR),
             (f"Hand status: {state}",HAND_COLOR),
             (f"Processing {record.get('processing_ms',0):.0f} ms | {'STALE: triggers blocked' if stale else 'frame fresh'}",(0,200,255)),
-            ("Full-frame detection | LOCAL ONLY | Q: quit",(255,255,255))]
+            (f"Full-frame detection | {'JJT DIRECT' if robot_connected else 'LOCAL ONLY'} | Q: quit",(255,255,255))]
     # Dark banner keeps diagnostics readable; drawn only AFTER both inferences.
     cv2.rectangle(frame,(0,0),(frame.shape[1]-1,132),(25,25,25),-1)
     for i,(text,color) in enumerate(rows):

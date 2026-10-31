@@ -1,4 +1,4 @@
-"""Same-frame independent policies; never merges gesture into the smile wire protocol."""
+"""Same-frame independent policies; only smile creates a JJT action trigger."""
 import time
 from emotion_interaction.gesture_policy import GesturePolicy, PolicyConfig
 from emotion_interaction.smile_policy import SmilePolicy, SmileConfig
@@ -20,4 +20,4 @@ class CombinedSession:
             now_ms=completed_at, gesture=gesture["gesture"], confidence=gesture["confidence"])
         return {"frame_id": frame_id, "captured_at": captured_at,
                 "processed_at": completed_at, "smile": smile, "gesture": gesture,
-                "smile_request": request, "gesture_candidate": candidate, "transport": "NONE"}
+                "smile_request": request, "gesture_candidate": candidate}

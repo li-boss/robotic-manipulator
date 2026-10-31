@@ -1,4 +1,4 @@
-"""Run only the implemented D interaction contract and policy checks."""
+"""Run D recognition policies and the direct JJT client checks."""
 import unittest
 
 if __name__ == "__main__":

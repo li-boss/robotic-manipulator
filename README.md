@@ -1,18 +1,30 @@
-# 智能机械臂垃圾分拣系统
+# 机械臂视觉互动项目
 
-本仓库从四人并行开发骨架开始建设。当前 D 部分已有可运行的手势、笑脸及联合检测入口，并提供部分离线模拟与测试工具；真实机械臂联调与整体验收尚未完成。各模块进度以对应目录说明为准。
+当前项目以 `mechanical_arm` 中的 JJT 实现为机械臂标准，D 侧识别直接调用 JJT 现有 HTTP 接口。
 
-| 成员 | 主负责目录 | 主要内容 |
-| --- | --- | --- |
-| A | `camera_service/`、`waste_vision/`、`calibration_tools/samples/` | 相机、垃圾识别、标定采样 |
-| B | `calibration_tools/solver/`、`robot_executor/` | 标定求解、机械臂动作与安全校验 |
-| C | `contracts/`、`task_service/`、`event_service/`、`web_dashboard/` | 接口契约、任务调度、事件服务与轻量看板 |
-| D | `emotion_interaction/`、`integration_tools/` | 手势与笑脸互动、模拟器与联调工具 |
+| 目录 | 内容 |
+| --- | --- |
+| `mechanical_arm/` | 机械臂网页、相机、标定、规划、控制与测试 |
+| `emotion_interaction/` | 笑脸、手势和联合识别；笑脸可直接调用 JJT |
+| `integration_tools/` | 模型下载、模型检查和 D 侧测试入口 |
+| `docs/` | D 侧实现与直接联调说明 |
 
-各模块先依据 `contracts/` 的接口约定，使用 `integration_tools/mocks/` 中的模拟依赖并行开发。空文件名仅表示建议的职责位置；接口、硬件参数和运行命令须经四人确认后再实现。
+## 直接联调
 
-## D 部分安装与运行
+JJT 服务保持原接口：
 
-请先阅读 [手势与笑脸模块 README](emotion_interaction/README.md)：其中列明 Windows 64 位 Python 3.13 环境、依赖安装、三个预训练模型的来源/下载命令/保存位置，以及独立和联合检测启动方法。模型、虚拟环境和日志不上传 Git，队友需要按说明在本机准备。
+- `GET /control/status`：读取模式、忙碌状态、CSRF 和已保存六关节姿态；
+- `POST /control/states/execute`：执行一个经过页面保存的六关节姿态。
 
-补充说明：[模拟与联调工具](integration_tools/README.md)、[D 部分实施记录](docs/D_emotion_integration.md)、[笑脸检测说明](docs/D_smile_detection.md)。当前摄像头演示仅本地识别/生成请求，不控制真实机械臂。
+D 侧不自行定义机械臂动作参数。操作者先在 JJT 网页保存和核对有限姿态，再明确给出动作序列：
+
+```powershell
+.venv\Scripts\python.exe -m emotion_interaction.smile_demo `
+  --robot-url http://192.168.137.100:8080 `
+  --action WAVE `
+  --states "wave_left,wave_right,wave_left,wave_home"
+```
+
+笑脸确认后，程序显示完整计划并要求输入本次 `EXECUTE <request_id>`。只有输入完全一致才逐步调用 JJT；异常时停止后续步骤且不重发。未提供 `--robot-url` 和 `--states` 时仅本地识别。
+
+机械臂启动方式和实机限制见 [mechanical_arm/README.md](mechanical_arm/README.md)，识别环境和模型见 [emotion_interaction/README.md](emotion_interaction/README.md)。

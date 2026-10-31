@@ -1,4 +1,4 @@
-"""One camera and one window for smile + hand gestures. Local/mock only."""
+"""Smile + gesture preview; smile can directly execute a confirmed JJT plan."""
 import argparse
 import json
 import time
@@ -16,7 +16,8 @@ def main():
     parser.add_argument("--action", choices=["WAVE", "NOD"], default="WAVE")
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--max-frames", type=int, default=0)
-    parser.add_argument("--mock-robot-state", choices=["IDLE","BUSY","HOLDING","FAULT","STOPPING","STOPPED"])
+    parser.add_argument("--robot-url", help="JJT origin, for example http://192.168.137.100:8080")
+    parser.add_argument("--states", help="ordered JJT saved-state names separated by commas")
     args = parser.parse_args()
     print("正在启动笑脸与手势联合检测……", flush=True)
     import cv2
@@ -25,9 +26,17 @@ def main():
     from emotion_interaction.smile_detector import SmileDetector
     from emotion_interaction.smile_policy import SmileConfig
     from emotion_interaction.preview_overlay import draw_combined_overlay
-    from integration_tools.mocks.fake_robot import FakeRobot
+    from emotion_interaction.interaction_request import (
+        JjtError, JjtRobot, confirm_and_execute, parse_state_names,
+    )
     config = SmileConfig(threshold=args.smile_threshold, requested_action=args.action)
-    robot = FakeRobot(args.mock_robot_state) if args.mock_robot_state else None
+    if bool(args.robot_url) != bool(args.states):
+        parser.error("--robot-url and --states must be provided together")
+    robot = JjtRobot(args.robot_url) if args.robot_url else None
+    state_names = parse_state_names(args.states) if args.states else None
+    if robot:
+        status = robot.status()
+        print(f"JJT已连接：{robot.origin}，模式={status['mode']}，忙碌={status['busy']}", flush=True)
     identity = uuid.uuid4().hex
     path = Path("logs") / f"combined-{identity}.jsonl"
     path.parent.mkdir(exist_ok=True)
@@ -62,13 +71,27 @@ def main():
                 elapsed_ms = (time.perf_counter()-start)*1000
                 record["processing_ms"] = elapsed_ms
                 request = record["smile_request"]
-                record["mock_decision"] = robot.interact(request, time.time_ns()//1_000_000) if robot and request else None
-                log.write(json.dumps(record) + "\n")
+                if request and robot:
+                    try:
+                        result = confirm_and_execute(robot, request, state_names)
+                    except JjtError as error:
+                        result = {"decision": "FAILED", "reason": str(error),
+                                  "request_id": request["request_id"]}
+                elif request:
+                    result = {"decision": "LOCAL_ONLY", "reason": "ROBOT_URL_NOT_CONFIGURED",
+                              "request_id": request["request_id"]}
+                else:
+                    result = None
+                record["robot_result"] = result
+                record["transport"] = "JJT_DIRECT" if robot else "LOCAL_ONLY"
+                log.write(json.dumps(record, ensure_ascii=False) + "\n")
                 if request or record["gesture_candidate"]:
                     log.flush()
                     print(json.dumps({"smile_request":request,"gesture_candidate":record["gesture_candidate"],
-                                      "mock_decision":record["mock_decision"],"transport":"NONE"}), flush=True)
-                draw_combined_overlay(frame,record,smile_threshold=args.smile_threshold)
+                                      "robot_result":result,"transport":record["transport"]},
+                                      ensure_ascii=False), flush=True)
+                draw_combined_overlay(frame, record, smile_threshold=args.smile_threshold,
+                                      robot_connected=robot is not None)
                 if not args.headless:
                     cv2.imshow("Smile + Gesture preview", frame)
                 if (args.max_frames > 0 and index >= args.max_frames) or (not args.headless and cv2.waitKey(1) & 0xFF in (ord("q"),27)):

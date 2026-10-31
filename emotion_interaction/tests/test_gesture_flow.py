@@ -1,7 +1,8 @@
 import unittest
 from emotion_interaction.gesture_policy import GesturePolicy, PolicyConfig
-from emotion_interaction.interaction_request import make_smile_request, request_from_gesture, validate_v1
-from integration_tools.mocks.fake_robot import FakeRobot
+from emotion_interaction.interaction_request import (
+    FIELDS, make_smile_request, request_from_gesture, validate_trigger,
+)
 
 
 class GesturePolicyTests(unittest.TestCase):
@@ -56,50 +57,21 @@ class ContractTests(unittest.TestCase):
     def request(self):
         return make_smile_request(.91,1000)
 
-    def test_original_fields(self):
-        self.assertEqual(set(self.request()), {"interaction_id","label","confidence","occurred_at","expires_at","requested_action"})
+    def test_jjt_trigger_fields(self):
+        self.assertEqual(set(self.request()), FIELDS)
+        validate_trigger(self.request())
 
-    def test_gesture_cannot_use_smile_contract(self):
-        with self.assertRaisesRegex(ValueError,"GESTURE_NOT_IN_V1_CONTRACT"):
+    def test_gesture_does_not_create_robot_trigger(self):
+        with self.assertRaisesRegex(ValueError,"GESTURE_ACTION_NOT_CONFIGURED"):
             request_from_gesture({"gesture":"like"})
-        request=self.request(); request["label"]="like"
-        with self.assertRaises(ValueError): validate_v1(request)
+        request=self.request(); request["action"]="GRAB"
+        with self.assertRaises(ValueError): validate_trigger(request)
 
-    def test_invalid_wire_values(self):
+    def test_invalid_trigger_values(self):
         for key,value in [("confidence",91),("confidence",True),("confidence",float("nan")),
-                          ("requested_action","GRAB"),("occurred_at",1.0),("expires_at",1000)]:
+                          ("action","GRAB"),("detected_at",1.0),("request_id","bad")]:
             request=self.request();request[key]=value
-            with self.subTest(key=key,value=value), self.assertRaises(ValueError): validate_v1(request)
-
-    def test_states_reject_without_action(self):
-        for state in ["BUSY","HOLDING","FAULT","STOPPING","STOPPED","UNKNOWN"]:
-            robot=FakeRobot(state)
-            with self.subTest(state=state):
-                self.assertEqual(robot.interact(self.request(),1100)["decision"],"REJECTED")
-                self.assertEqual(robot.actions,[])
-
-    def test_holding_flag_overrides_idle(self):
-        robot=FakeRobot("IDLE",holding=True)
-        self.assertEqual(robot.interact(self.request(),1100)["reason"],"ROBOT_HOLDING")
-
-    def test_duplicate_and_conflict(self):
-        robot=FakeRobot(); request=self.request()
-        self.assertEqual(robot.interact(request,1100)["decision"],"ACCEPTED")
-        self.assertEqual(robot.interact(request,1200)["decision"],"ACCEPTED")
-        self.assertEqual(len(robot.actions),1)
-        changed={**request,"requested_action":"NOD"}
-        self.assertEqual(robot.interact(changed,1300)["reason"],"INTERACTION_ID_CONFLICT")
-
-    def test_expiry_boundary(self):
-        robot=FakeRobot()
-        self.assertEqual(robot.interact(self.request(),2000)["reason"],"EXPIRED")
-        self.assertEqual(robot.actions,[])
-
-    def test_rejected_not_queued(self):
-        robot=FakeRobot("BUSY"); request=self.request()
-        robot.interact(request,1100); robot.state="IDLE"
-        self.assertEqual(robot.interact(request,1200)["decision"],"REJECTED")
-        self.assertEqual(robot.actions,[])
+            with self.subTest(key=key,value=value), self.assertRaises(ValueError): validate_trigger(request)
 
 
 if __name__ == "__main__": unittest.main()

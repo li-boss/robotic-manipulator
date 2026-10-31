@@ -1,4 +1,4 @@
-"""Local gesture adapter; no robot transport and no changes to contracts/."""
+"""Local gesture adapter; gesture-to-robot actions are not configured."""
 import hashlib
 import json
 from pathlib import Path

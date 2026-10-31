@@ -1,4 +1,4 @@
-"""Local preview and optional fake robot; no real robot/network transport."""
+"""Smile preview with optional direct execution through the JJT web API."""
 import argparse
 import json
 import time
@@ -8,22 +8,31 @@ from emotion_interaction.smile_policy import DEFAULT_SMILE_THRESHOLD
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Smile preview: no real robot control")
+    parser = argparse.ArgumentParser(description="Smile preview and direct JJT saved-state execution")
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--video", type=Path)
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--max-frames", type=int, default=0)
     parser.add_argument("--threshold", type=float, default=DEFAULT_SMILE_THRESHOLD)
     parser.add_argument("--action", choices=["WAVE", "NOD"], default="WAVE")
-    parser.add_argument("--mock-robot-state", choices=["IDLE", "BUSY", "HOLDING", "FAULT", "STOPPING", "STOPPED"])
+    parser.add_argument("--robot-url", help="JJT origin, for example http://192.168.137.100:8080")
+    parser.add_argument("--states", help="ordered JJT saved-state names separated by commas")
     args = parser.parse_args()
     print("正在启动笑脸检测……", flush=True)
     import cv2
     from emotion_interaction.smile_detector import SmileDetector
     from emotion_interaction.smile_policy import SmilePolicy, SmileConfig
-    from integration_tools.mocks.fake_robot import FakeRobot
+    from emotion_interaction.interaction_request import (
+        JjtError, JjtRobot, confirm_and_execute, parse_state_names,
+    )
     policy = SmilePolicy(SmileConfig(threshold=args.threshold, requested_action=args.action))
-    robot = FakeRobot(args.mock_robot_state) if args.mock_robot_state else None
+    if bool(args.robot_url) != bool(args.states):
+        parser.error("--robot-url and --states must be provided together")
+    robot = JjtRobot(args.robot_url) if args.robot_url else None
+    state_names = parse_state_names(args.states) if args.states else None
+    if robot:
+        status = robot.status()
+        print(f"JJT已连接：{robot.origin}，模式={status['mode']}，忙碌={status['busy']}", flush=True)
     detector = SmileDetector(progress=lambda message: print(message, flush=True))
     cap = None
     session = uuid.uuid4().hex
@@ -50,20 +59,32 @@ def main():
                 now_ms = time.time_ns() // 1_000_000
                 request = policy.update(frame_id=frame_id, captured_at=captured_at,
                                         now_ms=now_ms, evidence=evidence)
-                decision = robot.interact(request, now_ms) if request and robot else None
+                if request and robot:
+                    try:
+                        decision = confirm_and_execute(robot, request, state_names)
+                    except JjtError as error:
+                        decision = {"decision": "FAILED", "reason": str(error),
+                                    "request_id": request["request_id"]}
+                elif request:
+                    decision = {"decision": "LOCAL_ONLY", "reason": "ROBOT_URL_NOT_CONFIGURED",
+                                "request_id": request["request_id"]}
+                else:
+                    decision = None
                 record = {"frame_id": frame_id, "captured_at": captured_at, "evidence": evidence,
-                          "request": request, "mock_decision": decision, "transport": "NONE"}
-                log.write(json.dumps(record) + "\n")
+                          "request": request, "robot_result": decision,
+                          "transport": "JJT_DIRECT" if robot else "LOCAL_ONLY"}
+                log.write(json.dumps(record, ensure_ascii=False) + "\n")
                 if request:
                     log.flush()
-                    print(json.dumps({"status": "REQUEST_CREATED_LOCAL", "request": request,
-                                      "mock_decision": decision}), flush=True)
+                    print(json.dumps({"status": "SMILE_TRIGGERED", "request": request,
+                                      "robot_result": decision}, ensure_ascii=False), flush=True)
                 score = evidence["smile_score"]
                 smiling = evidence["status"] == "FACE_DETECTED" and score >= args.threshold
                 title = ("SMILE" if smiling else "NO_SMILE") if evidence["status"] == "FACE_DETECTED" else evidence["status"]
                 cv2.putText(frame, f"{title} score={score:.2f} faces={evidence['face_count']}",
                             (20, 40), cv2.FONT_HERSHEY_SIMPLEX, .7, (0,255,0), 2)
-                cv2.putText(frame, "LOCAL ONLY - Q to quit", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, .6, (0,200,255), 1)
+                mode = "JJT DIRECT" if robot else "LOCAL ONLY"
+                cv2.putText(frame, f"{mode} - Q to quit", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, .6, (0,200,255), 1)
                 box = evidence["face_box"]
                 if box:
                     h, w = frame.shape[:2]

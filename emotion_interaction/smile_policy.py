@@ -1,4 +1,4 @@
-"""Continuous smile confirmation -> unchanged section 3.5 request, no transport."""
+"""Continuous smile confirmation producing a JJT-compatible local trigger."""
 import math
 from collections import deque
 from dataclasses import dataclass
@@ -14,7 +14,6 @@ class SmileConfig:
     release_frames: int = 3
     cooldown_ms: int = 5000
     max_frame_age_ms: int = 500
-    ttl_ms: int = 1000
     requested_action: str = "WAVE"
 
 
@@ -22,7 +21,7 @@ class SmilePolicy:
     def __init__(self, config=SmileConfig()):
         if type(config.threshold) not in (int, float) or not math.isfinite(config.threshold) or not 0 < config.threshold <= 1:
             raise ValueError("INVALID_SMILE_THRESHOLD")
-        for name in ("confirm_frames", "release_frames", "ttl_ms"):
+        for name in ("confirm_frames", "release_frames"):
             if type(getattr(config, name)) is not int or getattr(config, name) < 1:
                 raise ValueError("INVALID_SMILE_CONFIG")
         for name in ("cooldown_ms", "max_frame_age_ms"):
@@ -84,11 +83,8 @@ class SmilePolicy:
             return None
         if self.last_trigger is not None and now_ms - self.last_trigger < self.config.cooldown_ms:
             return None
-        if now_ms >= captured_at + self.config.ttl_ms:
-            self._reset_candidate()
-            return None
         request = make_smile_request(self.minimum_score, captured_at,
-                                     self.config.requested_action, self.config.ttl_ms)
+                                     self.config.requested_action)
         self.latched, self.last_trigger = True, now_ms
         self._reset_candidate()
         return request
