@@ -201,8 +201,6 @@ class CadGeometryTests(unittest.TestCase):
         self.assertEqual(plan['steps'][0]['label'],'张开夹爪并到取物上方')
         self.assertEqual(plan['steps'][0]['joints'][-1],[6,10])
         self.assertLessEqual(len(plan['steps']),200)
-        artifact=Path(__file__).parent.parent/'implementation_backups/paperless_20261016/synthetic_cad_case.json'
-        artifact.write_text(json.dumps(dict(setup=cfg,arms=arms,target=target,plan=plan),ensure_ascii=False,allow_nan=False))
         print('CAD synthetic pickup:',len(plan['steps']),'commands,',round(time.monotonic()-start,2),'s',flush=True)
 
     def test_full_plan_releases_and_preserves_flat_block(self):

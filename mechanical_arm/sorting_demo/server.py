@@ -26,14 +26,16 @@ Camera, handler_for = camera_module.Camera, camera_module.handler_for
 
 class Demo:
     def __init__(self, camera, config_path=ROOT / "config.json", arm_path=ROOT.parent / "arm_playground/config.json",
-                 log_path=ROOT / "logs/events.jsonl", real_control=False):
+                 log_path=ROOT / "logs/events.jsonl", real_control=False,
+                 interaction_state_provider=None):
         self.camera = camera
         self.config_path, self.arm_path = Path(config_path), Path(arm_path)
         self.config = validate_config(json.loads(self.config_path.read_text(encoding="utf-8-sig")))
         self.store = EventStore(log_path)
         self.lock = threading.RLock()
         self.cached = None
-        self.control = Control(self.arm_path, real=real_control)
+        self.control = Control(self.arm_path, real=real_control,
+                               interaction_state_provider=interaction_state_provider)
         self.auto = AutoTask(self)
         self.teaching = Teaching(self)
         self.cards = TeachingCards(self)
@@ -135,6 +137,8 @@ def demo_handler(demo):
                         self.send_json(200, demo.config)
                 elif path == "/control/status":
                     self.send_json(200, demo.control.status())
+                elif path.startswith('/control/jobs/'):
+                    self.send_json(200, demo.control.get_job(path[len('/control/jobs/'):]))
                 elif path == '/auto/status':
                     self.send_json(200,demo.auto.status())
                 elif path == '/teaching/status':

@@ -2,7 +2,7 @@
 import math
 from collections import deque
 from dataclasses import dataclass
-from emotion_interaction.interaction_request import make_smile_request
+from emotion_interaction.interaction_request import make_smile_request, DEFAULT_REQUEST_TTL_MS, MAX_REQUEST_TTL_MS
 
 DEFAULT_SMILE_THRESHOLD = 0.3
 
@@ -15,6 +15,7 @@ class SmileConfig:
     cooldown_ms: int = 5000
     max_frame_age_ms: int = 500
     requested_action: str = "WAVE"
+    request_ttl_ms: int = DEFAULT_REQUEST_TTL_MS
 
 
 class SmilePolicy:
@@ -29,6 +30,8 @@ class SmilePolicy:
                 raise ValueError("INVALID_SMILE_CONFIG")
         if config.requested_action not in {"WAVE", "NOD"}:
             raise ValueError("INVALID_ACTION")
+        if type(config.request_ttl_ms) is not int or not 0 < config.request_ttl_ms <= MAX_REQUEST_TTL_MS:
+            raise ValueError('INVALID_REQUEST_TTL')
         self.config = config
         self.count = self.release = 0
         self.latched = False
@@ -84,7 +87,7 @@ class SmilePolicy:
         if self.last_trigger is not None and now_ms - self.last_trigger < self.config.cooldown_ms:
             return None
         request = make_smile_request(self.minimum_score, captured_at,
-                                     self.config.requested_action)
+                                     self.config.requested_action, self.config.request_ttl_ms)
         self.latched, self.last_trigger = True, now_ms
         self._reset_candidate()
         return request

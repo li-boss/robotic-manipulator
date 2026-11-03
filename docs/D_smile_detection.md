@@ -20,11 +20,14 @@
   "request_id": "32位十六进制编号",
   "action": "WAVE",
   "confidence": 0.72,
-  "detected_at": 1792100000000
+  "detected_at": 1792100000000,
+  "expires_at": 1792100030000
 }
 ```
 
-真正发送给 JJT 的请求严格使用 JJT `/control/states/execute` 字段。
+真正发送给 JJT 的请求复用 `/control/states/execute`，附加 `interaction` 上下文。默认有效期 30 秒，终端确认等待也计时；客户端与服务端每次下发前检查，过期不继续下发。参数 `--request-ttl-ms` 可调整为 1～120000 ms，需要覆盖所选有限动作计划的用时。
+
+实机缺少真实夹物/故障/停止状态来源时拒绝笑脸动作。`COMMANDS_SENT` 只表示指令下发流程完成，`motion_verified=false` 表示未核验实际到位；超时或返回丢失记录 `UNKNOWN`，按原步骤 ID 查历史，不重发。完整接口与待提供配置见 [联调说明](D_emotion_integration.md)。
 
 ## 模型
 

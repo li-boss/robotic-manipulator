@@ -5,6 +5,7 @@ import time
 import uuid
 from pathlib import Path
 from emotion_interaction.smile_policy import DEFAULT_SMILE_THRESHOLD
+from emotion_interaction.interaction_request import DEFAULT_REQUEST_TTL_MS
 
 
 def main():
@@ -17,6 +18,8 @@ def main():
     parser.add_argument("--action", choices=["WAVE", "NOD"], default="WAVE")
     parser.add_argument("--robot-url", help="JJT origin, for example http://192.168.137.100:8080")
     parser.add_argument("--states", help="ordered JJT saved-state names separated by commas")
+    parser.add_argument('--request-ttl-ms', type=int, default=DEFAULT_REQUEST_TTL_MS,
+                        help='smile request validity, including confirmation and subsequent dispatches (1..120000 ms)')
     args = parser.parse_args()
     print("正在启动笑脸检测……", flush=True)
     import cv2
@@ -25,7 +28,8 @@ def main():
     from emotion_interaction.interaction_request import (
         JjtError, JjtRobot, confirm_and_execute, parse_state_names,
     )
-    policy = SmilePolicy(SmileConfig(threshold=args.threshold, requested_action=args.action))
+    policy = SmilePolicy(SmileConfig(threshold=args.threshold, requested_action=args.action,
+                                    request_ttl_ms=args.request_ttl_ms))
     if bool(args.robot_url) != bool(args.states):
         parser.error("--robot-url and --states must be provided together")
     robot = JjtRobot(args.robot_url) if args.robot_url else None
@@ -63,8 +67,9 @@ def main():
                     try:
                         decision = confirm_and_execute(robot, request, state_names)
                     except JjtError as error:
-                        decision = {"decision": "FAILED", "reason": str(error),
-                                    "request_id": request["request_id"]}
+                        decision = {"decision": error.decision, "reason": str(error),
+                                    "request_id": request["request_id"],
+                                    "step_request_id": error.request_id, "motion_verified": False}
                 elif request:
                     decision = {"decision": "LOCAL_ONLY", "reason": "ROBOT_URL_NOT_CONFIGURED",
                                 "request_id": request["request_id"]}

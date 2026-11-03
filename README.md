@@ -27,6 +27,7 @@ python -m speech_recognition.demo /path/to/audio.wav --device cpu
 JJT 服务保持原接口：
 
 - `GET /control/status`：读取模式、忙碌状态、CSRF 和已保存六关节姿态；
+- `GET /control/jobs/<request_id>`：只读查询指定任务及历史结果；
 - `POST /control/states/execute`：执行一个经过页面保存的六关节姿态。
 
 D 侧不自行定义机械臂动作参数。操作者先在 JJT 网页保存和核对有限姿态，再明确给出动作序列：
@@ -39,5 +40,7 @@ D 侧不自行定义机械臂动作参数。操作者先在 JJT 网页保存和�
 ```
 
 笑脸确认后，程序显示完整计划并要求输入本次 `EXECUTE <request_id>`。只有输入完全一致才逐步调用 JJT；异常时停止后续步骤且不重发。未提供 `--robot-url` 和 `--states` 时仅本地识别。
+
+笑脸触发默认 30 秒有效（含确认和下发，可通过 `--request-ttl-ms` 调整）。实机缺少真实夹物/故障/停止状态来源时拒绝互动；模拟状态不冒充实机状态。输出 `COMMANDS_SENT` 仅代表下发流程完成，不代表实际到位。电脑与机械臂服务需同时更新，动作配置及待联调事项见 [D/B 接口说明](docs/D_emotion_integration.md)。
 
 机械臂启动方式和实机限制见 [mechanical_arm/README.md](mechanical_arm/README.md)，识别环境和模型见 [emotion_interaction/README.md](emotion_interaction/README.md)。

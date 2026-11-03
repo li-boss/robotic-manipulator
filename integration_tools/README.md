@@ -10,4 +10,4 @@
 .venv\Scripts\python.exe -m integration_tools.contract_tests
 ```
 
-JJT 直连实现在 `emotion_interaction/interaction_request.py`。测试使用本机临时 HTTP 服务复现 JJT 的 `/control/status` 和 `/control/states/execute` 请求格式，不连接真实设备。
+JJT 直连实现在 `emotion_interaction/interaction_request.py`。测试使用注入的内存传输及 B 端真实 HTTP handler/假控制器，校验 `/control/status`、`/control/jobs/<request_id>`、`/control/states/execute`；不打开网络连接或连接真实设备。新增互动协议要求两端同时更新，有效期、未知设备状态拒绝和实际到位未验证的说明见模块 README。

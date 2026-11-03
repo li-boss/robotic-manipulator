@@ -97,7 +97,7 @@ class ControlTests(unittest.TestCase):
             self.direct();self.wait_done()
         finally:Fake.simulated_retries=[]
         self.assertEqual(self.c.job['status'],'completed');self.assertEqual(Fake.retries_requested,2)
-        log=[json.loads(x) for x in self.c.log.read_text().splitlines()]
+        log=[json.loads(x) for x in self.c.log.read_text(encoding='utf-8').splitlines()]
         self.assertTrue(any(e['kind']=='write_retry' and e['joint']==1 and e['attempt']==1 for e in log))
 
     def test_direct_boundaries_invalid_and_unready(self):

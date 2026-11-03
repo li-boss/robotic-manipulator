@@ -1,5 +1,6 @@
 import json
 import unittest
+from urllib.error import URLError
 from urllib.parse import urlsplit
 
 from emotion_interaction.interaction_request import (
@@ -44,6 +45,7 @@ class FakeJjtTransport:
         self.busy = False
         self.job = None
         self.posts = []
+        self.jobs = {}
         self.states = [
             saved_state("a" * 32, "wave_left", 80),
             saved_state("b" * 32, "wave_right", 100),
@@ -57,6 +59,8 @@ class FakeJjtTransport:
             "busy": self.busy,
             "job": self.job,
             "saved_states": {"sha256": self.revision, "states": self.states},
+            "interaction_api_version": 1,
+            "interaction_safety": {"allowed": True, "source": "simulation"},
         }
 
     def __call__(self, request, timeout):
@@ -64,6 +68,8 @@ class FakeJjtTransport:
         path = urlsplit(request.full_url).path
         if request.get_method() == "GET" and path == "/control/status":
             return FakeResponse(self.status())
+        if request.get_method() == 'GET' and path.startswith('/control/jobs/'):
+            return FakeResponse({'job': self.jobs.get(path.rsplit('/', 1)[1])})
         if request.get_method() != "POST" or path != "/control/states/execute":
             raise AssertionError(f"unexpected request: {request.get_method()} {path}")
         if request.get_header("Origin") != "http://jjt.test:8080":
@@ -75,15 +81,19 @@ class FakeJjtTransport:
                 or body.get("expected_sha256") != self.revision):
             raise AssertionError("bad JJT payload")
         self.posts.append(body)
-        self.job = {"id": body["request_id"], "status": "completed", "sent": 6, "total": 6}
+        self.job = {"id": body["request_id"], "status": "completed", "sent": 6, "total": 6,
+                    'parameters': dict(body['record'], interaction=body['interaction'], state_id=body['id']),
+                    'completion_kind': 'commands_sent', 'motion_verified': False}
+        self.jobs[body['request_id']] = self.job
         return FakeResponse({"job": self.job})
 
 
 class JjtDirectTests(unittest.TestCase):
     def setUp(self):
         self.fake = FakeJjtTransport()
+        self.now = 1100
         self.robot = JjtRobot("http://jjt.test:8080", poll_interval_s=0,
-                              open_url=self.fake)
+                              open_url=self.fake, clock_ms=lambda: self.now)
 
     def test_direct_saved_state_sequence_uses_exact_jjt_payload(self):
         trigger = make_smile_request(.91, 1000, "WAVE")
@@ -94,7 +104,8 @@ class JjtDirectTests(unittest.TestCase):
             ask=lambda _prompt: f"EXECUTE {trigger['request_id']}",
             output=output.append,
         )
-        self.assertEqual(result["decision"], "COMPLETED")
+        self.assertEqual(result["decision"], "COMMANDS_SENT")
+        self.assertIs(result['motion_verified'], False)
         self.assertEqual([post["record"]["name"] for post in self.fake.posts], sequence)
         self.assertEqual(len({post["request_id"] for post in self.fake.posts}), 4)
         self.assertTrue(all(len(post["request_id"]) == 32 for post in self.fake.posts))
@@ -107,6 +118,67 @@ class JjtDirectTests(unittest.TestCase):
             ask=lambda _prompt: "no", output=lambda _value: None,
         )
         self.assertEqual(result["reason"], "USER_DECLINED")
+        self.assertEqual(self.fake.posts, [])
+
+    def test_confirmation_expiry_never_posts(self):
+        trigger = make_smile_request(.9, 1000, ttl_ms=1000)
+        def delayed_confirmation(_prompt):
+            self.now = trigger['expires_at']
+            return 'EXECUTE ' + trigger['request_id']
+        with self.assertRaisesRegex(JjtError, 'INTERACTION_EXPIRED'):
+            confirm_and_execute(self.robot, trigger, ['wave_home'],
+                                ask=delayed_confirmation, output=lambda _: None)
+        self.assertEqual(self.fake.posts, [])
+
+    def test_past_and_future_trigger_rejected(self):
+        for start, reason in [(0, 'EXPIRED'), (2000, 'CLOCK_MISMATCH')]:
+            with self.subTest(start=start), self.assertRaisesRegex(JjtError, reason):
+                self.robot.prepare(make_smile_request(.9, start, ttl_ms=1000), ['wave_home'])
+        self.assertEqual(self.fake.posts, [])
+
+    def test_repeated_sequence_uses_history_not_current_job(self):
+        plan = self.robot.prepare(make_smile_request(.9, 1000), ['wave_left', 'wave_right'])
+        self.robot.execute(plan, confirmed=True)
+        self.fake.job = {'id': 'd' * 32, 'status': 'running'}
+        self.now = 100000  # Already completed history remains readable after expiry.
+        result = self.robot.execute(plan, confirmed=True)
+        self.assertEqual(result['decision'], 'COMMANDS_SENT')
+        self.assertEqual(len(self.fake.posts), 2)
+
+    def test_unknown_history_never_resends(self):
+        plan = self.robot.prepare(make_smile_request(.9, 1000), ['wave_home'])
+        self.robot.execute(plan, confirmed=True)
+        identifier = self.fake.posts[0]['request_id']
+        self.fake.jobs[identifier]['status'] = 'unknown'
+        with self.assertRaisesRegex(JjtError, 'RESULT_UNKNOWN'):
+            self.robot.execute(plan, confirmed=True)
+        self.assertEqual(len(self.fake.posts), 1)
+
+    def test_response_lost_after_acceptance_is_unknown_and_recovers_by_query(self):
+        plan = self.robot.prepare(make_smile_request(.9, 1000), ['wave_home'])
+        def lost_response(request, timeout):
+            response = self.fake(request, timeout)
+            if request.get_method() == 'POST':
+                raise URLError('response lost after acceptance')
+            return response
+        self.robot.open_url = lost_response
+        with self.assertRaises(JjtError) as caught:
+            self.robot.execute(plan, confirmed=True)
+        self.assertEqual(caught.exception.decision, 'UNKNOWN')
+        self.assertEqual(caught.exception.request_id, self.fake.posts[0]['request_id'])
+        self.assertEqual(len(self.fake.posts), 1)
+        self.robot.open_url = self.fake
+        self.robot.execute(plan, confirmed=True)
+        self.assertEqual(len(self.fake.posts), 1)
+
+    def test_legacy_server_and_unknown_safety_rejected(self):
+        original = self.fake.status
+        for fields, reason in [({'interaction_api_version': None}, 'UPGRADE_REQUIRED'),
+                               ({'interaction_safety': {'allowed': False, 'reason': 'DEVICE_STATE_UNKNOWN'}},
+                                'DEVICE_STATE_UNKNOWN')]:
+            self.fake.status = lambda: dict(original(), **fields)
+            with self.assertRaisesRegex(JjtError, reason):
+                self.robot.prepare(make_smile_request(.9, 1000), ['wave_home'])
         self.assertEqual(self.fake.posts, [])
 
     def test_busy_missing_and_changed_revision_stop_before_post(self):

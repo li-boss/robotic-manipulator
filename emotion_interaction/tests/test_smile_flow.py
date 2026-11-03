@@ -41,6 +41,7 @@ class SmilePolicyTests(unittest.TestCase):
         self.assertEqual(set(request),FIELDS)
         self.assertEqual(request["action"],"WAVE")
         self.assertEqual(request["confidence"],.7)
+        self.assertEqual(request['expires_at'] - request['detected_at'], 30000)
         self.assertEqual(len(request["request_id"]),32)
         self.assertTrue(all(c in "0123456789abcdef" for c in request["request_id"]))
         validate_trigger(request)
@@ -85,7 +86,8 @@ class SmilePolicyTests(unittest.TestCase):
 
     def test_invalid_config(self):
         for kwargs in ({"threshold":0},{"threshold":float("nan")},{"confirm_frames":0},
-                       {"release_frames":True},{"cooldown_ms":-1},{"requested_action":"GRAB"}):
+                       {"release_frames":True},{"cooldown_ms":-1},{"requested_action":"GRAB"},
+                       {'request_ttl_ms': 0}, {'request_ttl_ms': True}, {'request_ttl_ms': 120001}):
             with self.subTest(kwargs=kwargs),self.assertRaises(ValueError): SmilePolicy(SmileConfig(**kwargs))
 
 

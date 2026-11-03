@@ -1,0 +1,2 @@
+# CAD provenance binds the exact bytes of the course URDF, including line endings.
+mechanical_arm/sorting_demo/models/course/dofbot.urdf text eol=lf

@@ -10,15 +10,19 @@ import time
 from core import arm
 from pose_setup import POSE_NAMES, required, save_config
 from saved_states import StateStore, checked as checked_state
+from interaction_guard import checked_trigger, check_time, device_state
 
 ROOT = Path(__file__).resolve().parent
 
 
 class Control:
     def __init__(self, config_path, real=False, factory=arm.Controller, root=ROOT.parent,
-                 lock_factory=arm.hardware_lock):
+                 lock_factory=arm.hardware_lock, interaction_state_provider=None,
+                 clock_ms=None):
         self.path, self.root = Path(config_path), Path(root)
         self.real, self.factory, self.lock_factory = real, factory, lock_factory
+        self.interaction_state_provider = interaction_state_provider
+        self.clock_ms = clock_ms or (lambda: time.time_ns() // 1000000)
         self.lock = threading.RLock()
         self.csrf = secrets.token_urlsafe(32)
         self.pending = None
@@ -61,7 +65,7 @@ class Control:
         paths = [self.root / 'AGENTS.md', self.root / '机械臂操作准则.md',
                  ROOT / 'control.py', ROOT / 'server.py', ROOT / 'index.html',
                  ROOT / 'core.py', ROOT / 'start_service.py',
-                 ROOT / 'saved_states.py', ROOT / 'state_ui.js',
+                  ROOT / 'saved_states.py', ROOT / 'state_ui.js', ROOT / 'interaction_guard.py',
                  Path(arm.__file__), self.root / 'arm_playground/pose_setup.py',
                  self.root / 'arm_playground/joint_check.py', self.root / 'camera_preview/server.py', self.path]
         hashes = {}
@@ -109,7 +113,36 @@ class Control:
             return dict(mode='real' if self.real else 'simulation', csrf=self.csrf, busy=self.busy,
                         joints=self.rows, commanded=self.commanded, job=self.job,
                         joint_limits=cfg.get('joint_limits', {}), missing=required(cfg),
-                        poses=cfg.get('poses'), gripper=cfg.get('gripper'), targets=cfg.get('targets'), saved_states=self.states.status())
+                        poses=cfg.get('poses'), gripper=cfg.get('gripper'), targets=cfg.get('targets'), saved_states=self.states.status(),
+                        interaction_api_version=1, interaction_safety=self.interaction_safety())
+
+    def interaction_safety(self):
+        value = device_state(self.interaction_state_provider, real=self.real,
+                             now_ms=self.clock_ms())
+        if self.busy:
+            value.update(allowed=False, reason='ROBOT_BUSY')
+        return value
+
+    def check_interaction(self, trigger, *, running=False):
+        check_time(trigger, self.clock_ms())
+        value = device_state(self.interaction_state_provider, real=self.real,
+                             now_ms=self.clock_ms())
+        if self.busy and not running:
+            raise ValueError('ROBOT_BUSY')
+        if not value['allowed']:
+            raise ValueError(value['reason'])
+
+    def get_job(self, identifier):
+        """Read historical jobs without scheduling or retrying an operation."""
+        if (not isinstance(identifier, str) or len(identifier) != 32
+                or any(c not in '0123456789abcdef' for c in identifier)):
+            raise ValueError('INVALID_JOB_ID')
+        with self.lock:
+            job = self.direct_jobs.get(identifier) or self.manipulation_jobs.get(identifier)
+            if job is None and self.job and self.job['id'] == identifier:
+                job = self.job
+            return dict(job=dict(job) if job else None,
+                        mode='real' if self.real else 'simulation')
 
     def read(self):
         with self.lock:
@@ -271,11 +304,15 @@ class Control:
             duration, settle = arm.timing(dict(cfg, motion_ms=record['motion_ms']))
             args = dict(operation='state_move', **record, state_id=state['id'],
                 state_sha256=current['sha256'], settle_ms=settle, moves=6)
+            if 'interaction' in fields:
+                args['interaction'] = checked_trigger(fields['interaction'])
             if token in self.direct_jobs:
                 if self.direct_jobs[token]['parameters'] != args:
                     raise ValueError('请求编号已经绑定其他参数')
                 return dict(job=self.direct_jobs[token])
             self.idle()
+            if 'interaction' in args:
+                self.check_interaction(args['interaction'])
             if self.real and cfg.get('hardware_ready') is not True:
                 raise ValueError('实机未就绪，拒绝运动')
             audit = self.audit(args)
@@ -348,6 +385,8 @@ class Control:
                 cfg = self.config()
                 args = p['parameters']
                 if args['operation'] in ('direct_move', 'state_move'):
+                    if 'interaction' in args:
+                        self.check_interaction(args['interaction'], running=True)
                     cfg = dict(cfg, motion_ms=args['motion_ms'])
                     pairs = ([(i, args['angles'][i-1]) for i in args['order']] if args['operation'] == 'state_move'
                              else [(args['joint'], args['angle'])])
@@ -359,6 +398,11 @@ class Control:
                         if self.audit(args)['hashes'] != p['audit']['hashes']:
                             raise ValueError('规则、代码或配置变化，停止后续关节')
                         self.record('sending', dict(id=p['token'], parameters=args, step=index, joint=joint, angle=value))
+                        if 'interaction' in args:
+                            # Re-check after the hardware lock and immediately before each write.
+                            # The busy flag here belongs to this already accepted task.
+                            with self.lock:
+                                self.check_interaction(args['interaction'], running=True)
                         # 用户10-30：写入失败重发同一绝对目标最多2次，逐次记录。
                         try:
                             controller.write([(joint, value)], retries=arm.MAX_WRITE_RETRIES)
@@ -369,7 +413,9 @@ class Control:
                             self.commanded[str(joint)] = value
                             self.rows = []
                             self.job.update(sent=index+1, total=len(pairs), message=f'已下发{index+1}/{len(pairs)}个关节')
-                    outcome = dict(status='completed', message='本次目标已依序下发；未读取关节，请看现场结果')
+                    outcome = dict(status='completed', completion_kind='commands_sent',
+                                   motion_verified=False,
+                                   message='本次目标已依序下发；未读取关节，请看现场结果')
                     return
                 teaching = args['operation']=='teaching' and self.teaching.continue_read_failures(args)
                 manipulation = args['operation']=='manipulation' and self.manipulation.continue_read_failures(args)
