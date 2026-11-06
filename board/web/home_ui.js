@@ -72,7 +72,7 @@ async function loadDances(){dancePreviews={};el('danceCards').replaceChildren();
     info.textContent=PATTERN_TEXT(rt)+' · 共'+rt.steps.length+'步，约'+(rt.duration_ms/1000).toFixed(1)+'秒 · '+(c.checked?(c.ok?'✓ '+c.note:'✗ '+c.error):c.note);
     pre.textContent=rt.steps.map((s,i)=>(i+1)+'. '+s.label+'：'+s.joints.map(([j,v])=>j+'号→'+v+'°').join('，')+' / '+s.motion_ms+'ms+'+s.settle_ms+'ms').join('\n');disable();})
    .catch(e=>{if(el('danceState').value===id){info.textContent='不能执行：'+e.message;dancePreviews[name]={ready:false};disable();}});}}
-function PATTERN_TEXT(rt){return (dancePresets.patterns[rt.pattern]||rt.pattern)+'，幅度'+rt.amplitude_deg+'°，重复'+rt.repeats+'次，起点“'+rt.base_state.name+'”';}
+function PATTERN_TEXT(rt){return (rt.pattern==='keyframes'?'逐拍绝对目标'+(rt.source?'（'+rt.source+'）':'')+(rt.adjusted?'；已按本机范围调整：'+rt.adjusted:''):(dancePresets.patterns[rt.pattern]||rt.pattern)+'，幅度'+rt.amplitude_deg+'°')+'，重复'+rt.repeats+'次，起点“'+rt.base_state.name+'”';}
 el('danceState').onchange=()=>loadDances();
 function startDance(name){const p=dancePreviews[name];if(!p?.ready)return;el('danceNotice').textContent='正在跳“'+p.routine.label+'”，请看现场。';
  return guarded(async()=>{const r=await post('/modes/dance/start',{routine:name,state_id:p.state_id,routine_sha256:p.routine.sha256,states_sha256:p.states_sha256,request_id:requestId(),confirmed:true});el('danceNotice').textContent='已开始：共'+r.job.total+'步，约'+(r.duration_ms/1000).toFixed(1)+'秒。';},'danceNotice');}

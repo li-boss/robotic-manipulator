@@ -119,9 +119,12 @@ def application(root, pc_planner=None):
     data.mkdir(parents=True)
     (data / 'arm_config.json').write_text(json.dumps(arms), encoding='utf-8')
     (data / 'dances.json').write_text(json.dumps(DEFAULT_DANCES, ensure_ascii=False, indent=2), encoding='utf-8')
-    base = dict(id='0' * 32, name='模拟跳舞起点', angles=[90, 100, 60, 60, 130, 90], order=[6, 1, 2, 3, 4, 5], motion_ms=1000,
-                teaching_stage='', updated_at='synthetic', path_verified=False)
-    (data / 'manual_states.json').write_text(json.dumps(dict(version=1, states=[base]), ensure_ascii=False), encoding='utf-8')
+    # 跳舞起始姿态：竖直（课程舞蹈要求六个关节都是 90°，画圈也可用）；另一个姿态用于演示“不匹配”提示。
+    base = dict(id='0' * 32, name='模拟跳舞起点（竖直）', angles=[90, 90, 90, 90, 90, 90], order=[6, 5, 4, 3, 2, 1],
+                motion_ms=1000, teaching_stage='', updated_at='synthetic', path_verified=False)
+    other = dict(id='1' * 32, name='模拟其他姿态', angles=[90, 100, 60, 60, 130, 90], order=[6, 1, 2, 3, 4, 5], motion_ms=1000,
+                 teaching_stage='', updated_at='synthetic', path_verified=False)
+    (data / 'manual_states.json').write_text(json.dumps(dict(version=1, states=[base, other]), ensure_ascii=False), encoding='utf-8')
     SimFake.values, SimFake.calls = start.copy(), []
     camera = SyntheticCamera()
     demo = Demo(camera, data_dir=data, real_control=False, planner=None)

@@ -1,8 +1,8 @@
 """表情/手势触发跳舞（电脑端运行）。
 
 先在网页 http://192.168.137.100:8080/modes 开启“表情手势跳舞”，再运行：
-    python pc/run_gesture_dance.py --recognizer my_model:MyRecognizer --map smile=snake,wave=circle
-    python pc/run_gesture_dance.py --recognizer gesture.keyboard:KeyboardRecognizer --source none --map smile=snake
+    python pc/run_gesture_dance.py --recognizer my_model:MyRecognizer --map smile=course,wave=circle
+    python pc/run_gesture_dance.py --recognizer gesture.keyboard:KeyboardRecognizer --source none --map smile=course
 --source 选帧来源：webcam（电脑摄像头，默认）/ board（开发板摄像头）/ none（键盘模拟）。
 
 同一标签连续 --stable 帧且置信度 ≥ --threshold 才算一次触发；触发后等跳完 + 冷却再接受下一次。
@@ -22,7 +22,7 @@ def parse_map(text):
     for item in filter(None, (x.strip() for x in text.split(','))):
         label, _, routine = item.partition('=')
         if not routine:
-            raise SystemExit('--map 格式：标签=动作，多个用逗号分隔，例如 smile=snake,wave=circle')
+            raise SystemExit('--map 格式：标签=动作，多个用逗号分隔，例如 smile=course,wave=circle')
         mapping[label.strip()] = routine.strip()
     return mapping
 
@@ -89,7 +89,7 @@ def main():
     parser.add_argument('--board', default=DEFAULT_BOARD)
     parser.add_argument('--recognizer', default='gesture.keyboard:KeyboardRecognizer', help='识别器类 模块:类名')
     parser.add_argument('--source', default='webcam', help='webcam / webcam1 / board / none')
-    parser.add_argument('--map', default='smile=snake,wave=circle', help='标签=动作,标签=动作')
+    parser.add_argument('--map', default='smile=course,wave=circle', help='标签=动作,标签=动作')
     parser.add_argument('--stable', type=int, default=3, help='连续多少帧相同才触发')
     parser.add_argument('--threshold', type=float, default=0.6, help='置信度下限')
     args = parser.parse_args()

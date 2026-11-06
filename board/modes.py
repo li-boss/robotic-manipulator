@@ -172,7 +172,7 @@ class Modes:
             try:
                 routines[n] = build_routine(arms, base, n, available[n])
             except ValueError as exc:
-                raise ValueError(f'动作“{n}”从起始姿态“{base["name"]}”出发越界：{exc}；请换起始姿态或减小 dances.json 中的幅度') from None
+                raise ValueError(f'动作“{n}”从起始姿态“{base["name"]}”出发不能执行：{exc}；请换起始姿态或修改 dances.json') from None
             check = self.check_collision(routines[n])
             if check['checked'] and not check['ok']:
                 raise ValueError(f'动作“{n}”从起始姿态“{base["name"]}”出发：{check["error"]}')
@@ -300,7 +300,7 @@ class Modes:
         try:
             routine = build_routine(arms, base, name, available[name])
         except ValueError as exc:
-            raise ValueError(f'“{available[name].get("label", name)}”从起始姿态“{base["name"]}”出发越界：{exc}；请换起始姿态或减小 dances.json 中的幅度') from None
+            raise ValueError(f'“{available[name].get("label", name)}”从起始姿态“{base["name"]}”出发不能执行：{exc}；请换起始姿态或修改 dances.json') from None
         return routine, states['sha256']
 
     def dance_presets(self):

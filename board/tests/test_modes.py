@@ -13,6 +13,7 @@ from dance import build_routine, offsets
 from modes import detection_to_target
 
 BASE_ID = '0' * 32
+OTHER_ID = '1' * 32     # 模拟器里非竖直的姿态按钮（课程舞蹈不能从这里出发）
 
 
 class ModesTests(unittest.TestCase):
@@ -92,7 +93,7 @@ class ModesTests(unittest.TestCase):
     def test_dance_limits_cooldown_and_unauthorized_routine(self):
         session = self.arm(kind='gesture_dance', base_state_id=BASE_ID, routines=['circle'], max_actions=1, cooldown_s=30)
         with self.assertRaises(ValueError):
-            self.modes.api_gesture(dict(session_id=session['id'], routine='snake', request_id=secrets.token_hex(16)))
+            self.modes.api_gesture(dict(session_id=session['id'], routine='course', request_id=secrets.token_hex(16)))
         self.modes.api_gesture(dict(session_id=session['id'], routine='circle', request_id=secrets.token_hex(16)))
         self.wait()
         with self.assertRaises(ValueError):    # 次数用完，会话结束
@@ -112,16 +113,45 @@ class ModesTests(unittest.TestCase):
                 build_routine(arms, dict(state, angles=[90, 100, 60, 60, 90, 90]), 'x', bad)
 
     # ---------------------------------------------------------------- 网页跳舞按钮
-    def web_preview(self, routine='snake'):
-        return self.modes.dance_preview(dict(routine=routine, state_id=BASE_ID))
+    def web_preview(self, routine='course', state=BASE_ID):
+        return self.modes.dance_preview(dict(routine=routine, state_id=state))
 
     def web_start(self, preview, **extra):
-        fields = dict(routine=preview['routine']['name'], state_id=BASE_ID, routine_sha256=preview['routine']['sha256'],
-                      states_sha256=preview['states_sha256'], request_id=secrets.token_hex(16), confirmed=True)
+        fields = dict(routine=preview['routine']['name'], state_id=preview['routine']['base_state']['id'],
+                      routine_sha256=preview['routine']['sha256'], states_sha256=preview['states_sha256'],
+                      request_id=secrets.token_hex(16), confirmed=True)
         fields.update(extra)
         return self.modes.dance_start(fields)
 
-    def test_web_button_runs_exact_previewed_snake_and_dedupes(self):
+    def test_course_dance_matches_course_material_with_marked_adjustments(self):
+        from dance import COURSE_KEYFRAMES
+        preview = self.web_preview()
+        beats = [s for s in preview['routine']['steps'] if s['label'].startswith('课程舞蹈')]
+        self.assertEqual(len(beats), 17)
+        # 课程原文第1拍：2号180-120=60、3号120、4号60；第15拍夹爪用time_2=1000 ms
+        self.assertEqual(beats[0]['joints'], [[2, 60], [3, 120], [4, 60]])
+        self.assertEqual(beats[14]['motion_ms'], 1000)
+        # 越界值只在模板里人工明确改写，并随计划一起展示
+        self.assertEqual(beats[11]['joints'], [[1, 10], [4, 90], [5, 90], [6, 90]])
+        self.assertEqual(beats[12]['joints'], [[3, 170], [4, 10]])
+        self.assertEqual(beats[13]['joints'], [[6, 170]])
+        self.assertIn('180→170', preview['routine']['adjusted'])
+        self.assertEqual(len(COURSE_KEYFRAMES), 17)
+        self.assertEqual([v for _, v in beats[-1]['joints']], [90, 90])
+
+    def test_keyframes_require_matching_start_pose_and_never_clip(self):
+        with self.assertRaisesRegex(ValueError, '需要起始姿态'):
+            self.web_preview('course', OTHER_ID)
+        dances = self.demo.data_dir / 'dances.json'
+        data = json.loads(dances.read_text());data['routines']['course']['keyframes'][12]['3'] = 180;dances.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, '180'):
+            self.web_preview('course')
+        data['routines']['course']['keyframes'][12]['3'] = 170.0;dances.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, '整数'):
+            self.web_preview('course')
+        self.assertEqual(simulate.SimFake.calls, [])
+
+    def test_web_button_runs_exact_previewed_course_and_dedupes(self):
         preview = self.web_preview()
         self.assertTrue(preview['collision']['checked'] and preview['collision']['ok'])
         self.assertEqual(simulate.SimFake.calls, [])            # 预览不运动
@@ -130,12 +160,9 @@ class ModesTests(unittest.TestCase):
         self.assertEqual(simulate.SimFake.calls, [[tuple(p) for p in s['joints']] for s in preview['routine']['steps']])
         again = self.web_start(preview, **fields)
         self.assertTrue(again['duplicate']);self.assertEqual(len(simulate.SimFake.calls), len(preview['routine']['steps']))
-        snake = [s for s in preview['routine']['steps'] if s['label'].startswith('蛇形')]
-        self.assertTrue(all(len(s['joints']) == 6 for s in snake))          # 六个关节一起动
-        self.assertEqual([v for _, v in snake[-1]['joints']], preview['routine']['base_state']['angles'])
 
     def test_web_button_requires_confirmation_and_current_plan(self):
-        preview = self.web_preview('circle')
+        preview = self.web_preview('circle', BASE_ID)
         with self.assertRaises(ValueError):
             self.web_start(preview, confirmed=False)
         with self.assertRaisesRegex(ValueError, '不同'):
@@ -150,23 +177,25 @@ class ModesTests(unittest.TestCase):
 
     def test_web_button_rejects_model_collision_and_out_of_range(self):
         path = self.demo.data_dir / 'manual_states.json'
-        data = json.loads(path.read_text());data['states'][0]['angles'] = [90, 60, 40, 40, 130, 90];path.write_text(json.dumps(data))
-        preview = self.web_preview('snake')
+        data = json.loads(path.read_text());data['states'][0]['angles'] = [90, 45, 45, 45, 90, 90];path.write_text(json.dumps(data))
+        dances = self.demo.data_dir / 'dances.json'
+        spec = json.loads(dances.read_text());spec['routines']['circle']['amplitude_deg'] = 30;dances.write_text(json.dumps(spec))
+        preview = self.web_preview('circle', BASE_ID)
         self.assertFalse(preview['collision']['ok'])
         with self.assertRaisesRegex(ValueError, '碰撞'):
             self.web_start(preview)
-        data['states'][0]['angles'] = [90, 100, 60, 60, 90, 90];path.write_text(json.dumps(data))
-        with self.assertRaisesRegex(ValueError, '越界'):
-            self.web_preview('snake')
+        data['states'][0]['angles'] = [10, 100, 60, 60, 130, 90];path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, '不在'):
+            self.web_preview('circle', BASE_ID)
         self.assertEqual(simulate.SimFake.calls, [])
 
     def test_web_button_blocked_while_mode_armed_and_stop_halts_later_beats(self):
         self.dance_session()
         with self.assertRaisesRegex(ValueError, '关闭模式'):
-            self.web_start(self.web_preview('circle'))
+            self.web_start(self.web_preview('circle', BASE_ID))
         self.modes.disarm()
         simulate.SimFake.max_delay_ms = 200
-        preview = self.web_preview('snake')
+        preview = self.web_preview()
         self.web_start(preview)
         deadline = time.monotonic() + 10
         while len(simulate.SimFake.calls) < 2 and time.monotonic() < deadline:

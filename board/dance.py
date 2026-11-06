@@ -4,8 +4,9 @@
   sway   左右摇摆：1 号底座在起始角 ±幅度 间来回
   nod    点头：4 号腕关节在起始角 ±幅度 间来回
   circle 画圈：1 号与 4 号按圆周 8 个点组合运动（末端画一个小圈）
-  snake  蛇形：1～6 号一起按正弦波摆动，相邻关节相位错开 45°，像一条波从底座传到夹爪；
-         1、2 号用一半幅度（它们带动整条手臂，摆幅大），其余关节用全幅度
+  keyframes 关键帧：模板里逐拍写明绝对目标角（课程《任务7：机械臂跳舞》的那支舞即用这种方式）。
+         要求起始姿态按钮的六个角度与模板的 start_angles 完全相同；超出本机配置范围的值
+         必须在模板里人工写成合法值并注明，代码不会自动截断。
 
 起始姿态必须是用户在网页上保存过的六关节姿态按钮（明确目标），不使用实时读数生成目标。
 所有目标逐个经过 arm.angle 校验（配置范围、整数），任何一个越界就整套拒绝，不截断、不夹紧。
@@ -17,15 +18,32 @@ import math
 
 import arm
 
-PATTERNS = {'sway': '左右摇摆', 'nod': '点头', 'circle': '画圈', 'snake': '蛇形'}
-SNAKE_WEIGHTS = {1: .5, 2: .5, 3: 1., 4: 1., 5: 1., 6: 1.}
-SNAKE_BEATS = 8
+PATTERNS = {'sway': '左右摇摆', 'nod': '点头', 'circle': '画圈', 'keyframes': '关键帧'}
+MAX_KEYFRAMES = 60
 MAX_AMPLITUDE_DEG = 30
 MAX_REPEATS = 5
 MAX_STEP_MS = 3000
+# 课程资料《任务7：机械臂跳舞》main() 循环体，逐拍照录（time_1=500 ms，time_2=1000 ms）。
+# 本机配置范围为1～4、6号10～170°，5号90～250°；原舞第12～14拍有4个值越界，按用户2026-11-06
+# 选择在此明确写成边界值：1号0→10、3号180→170、4号0→10、6号180→170。其余全部为原值。
+COURSE_KEYFRAMES = [
+    {'2': 60, '3': 120, '4': 60}, {'2': 45, '3': 135, '4': 45}, {'2': 60, '3': 120, '4': 60},
+    {'2': 90, '3': 90, '4': 90}, {'2': 100, '3': 80, '4': 80}, {'2': 120, '3': 60, '4': 60},
+    {'2': 135, '3': 45, '4': 45}, {'2': 90, '3': 90, '4': 90},
+    {'4': 20, '6': 150}, {'4': 90, '6': 90}, {'4': 20, '6': 150},
+    {'4': 90, '6': 90, '1': 10, '5': 90},
+    {'3': 170, '4': 10},
+    {'6': 170},
+    {'6': 90, 'motion_ms': 1000},
+    {'6': 90, '1': 90, '5': 90},
+    {'3': 90, '4': 90},
+]
 DEFAULT_DANCES = dict(version=1, routines={
     'circle': dict(label='画圈', pattern='circle', amplitude_deg=15, repeats=1, motion_ms=600),
-    'snake': dict(label='蛇形', pattern='snake', amplitude_deg=20, repeats=2, motion_ms=600),
+    'course': dict(label='课程舞蹈', pattern='keyframes', start_angles=[90, 90, 90, 90, 90, 90], repeats=1,
+                   motion_ms=500, keyframes=COURSE_KEYFRAMES,
+                   source='课程资料 02_第二阶段 任务7：机械臂跳舞',
+                   adjusted='第12拍1号0→10、第13拍3号180→170与4号0→10、第14拍6号180→170（本机配置范围）'),
 })
 
 
@@ -55,13 +73,29 @@ def offsets(pattern, amplitude, repeats):
                 theta = 2 * math.pi * k / 8
                 out.append({1: round(amplitude * math.sin(theta)), 4: round(amplitude * math.cos(theta))})
         return out + [{1: 0, 4: 0}]
-    if pattern == 'snake':
-        # 第k拍：关节j偏移 = 幅度×权重×sin(2πk/8 − (j−1)·45°)；最后一拍全部回到起始姿态。
-        def wave(k):
-            return {j: round(amplitude * w * math.sin(2 * math.pi * k / SNAKE_BEATS - (j - 1) * math.pi / 4))
-                    for j, w in SNAKE_WEIGHTS.items()}
-        return [wave(k) for k in range(SNAKE_BEATS * repeats)] + [{j: 0 for j in SNAKE_WEIGHTS}]
     raise ValueError('未知动作模板：' + str(pattern))
+
+
+def keyframe_steps(name, frames, repeats, default_ms):
+    """关键帧模板 → [(按关节号排序的[(关节, 绝对角)], 用时)]；整数校验，不做任何换算。"""
+    if not isinstance(frames, list) or not 0 < len(frames) <= MAX_KEYFRAMES:
+        raise ValueError(f'{name}：keyframes 须为1～{MAX_KEYFRAMES}拍')
+    out = []
+    for index, frame in enumerate(frames, 1):
+        if not isinstance(frame, dict):
+            raise ValueError(f'{name} 第{index}拍格式错误')
+        ms = _int_in(frame.get('motion_ms', default_ms), 500, MAX_STEP_MS, f'{name} 第{index}拍用时(ms)')
+        joints = []
+        for key, value in frame.items():
+            if key == 'motion_ms':
+                continue
+            if key not in ('1', '2', '3', '4', '5', '6') or type(value) is not int:
+                raise ValueError(f'{name} 第{index}拍：关节号须为"1"～"6"，角度须为整数')
+            joints.append((int(key), value))
+        if not joints:
+            raise ValueError(f'{name} 第{index}拍没有关节目标')
+        out.append((sorted(joints), ms))
+    return out * repeats
 
 
 def build_routine(arms, base_state, name, spec):
@@ -71,21 +105,34 @@ def build_routine(arms, base_state, name, spec):
     pattern = spec.get('pattern')
     if pattern not in PATTERNS:
         raise ValueError(f'{name}：pattern 须为 {sorted(PATTERNS)} 之一')
-    amplitude = _int_in(spec.get('amplitude_deg'), 1, MAX_AMPLITUDE_DEG, f'{name} 幅度(度)')
+    keyframes = pattern == 'keyframes'
+    amplitude = None if keyframes else _int_in(spec.get('amplitude_deg'), 1, MAX_AMPLITUDE_DEG, f'{name} 幅度(度)')
     repeats = _int_in(spec.get('repeats'), 1, MAX_REPEATS, f'{name} 重复次数')
     step_ms = _int_in(spec.get('motion_ms'), 500, MAX_STEP_MS, f'{name} 每步用时(ms)')
     _, settle = arm.timing(dict(arms, motion_ms=step_ms))
     base = list(base_state['angles'])
+    if keyframes:
+        start = spec.get('start_angles')
+        if not isinstance(start, list) or len(start) != 6 or any(type(v) is not int for v in start):
+            raise ValueError(f'{name}：start_angles 须为6个整数')
+        if base != start:
+            raise ValueError(f'需要起始姿态 {start}（例如“竖直”姿态按钮），当前选择的是 {base}')
     steps = []
     # 第 1 步：按姿态按钮自己的顺序逐关节到起始姿态（与“姿态按钮”执行方式一致）。
     for joint in base_state['order']:
         steps.append(dict(label=f'到起始姿态：{joint}号', joints=[[joint, arm.angle(arms, joint, base[joint - 1])]],
                           motion_ms=base_state['motion_ms'], settle_ms=settle))
-    for index, delta in enumerate(offsets(pattern, amplitude, repeats), 1):
-        joints = [[j, arm.angle(arms, j, base[j - 1] + d)] for j, d in sorted(delta.items())]
-        steps.append(dict(label=f'{PATTERNS[pattern]} 第{index}拍', joints=joints, motion_ms=step_ms, settle_ms=settle))
+    if keyframes:
+        for index, (joints, ms) in enumerate(keyframe_steps(name, spec.get('keyframes'), repeats, step_ms), 1):
+            joints = [[j, arm.angle(arms, j, v)] for j, v in joints]
+            _, beat_settle = arm.timing(dict(arms, motion_ms=ms))
+            steps.append(dict(label=f'{spec.get("label") or name} 第{index}拍', joints=joints, motion_ms=ms, settle_ms=beat_settle))
+    else:
+        for index, delta in enumerate(offsets(pattern, amplitude, repeats), 1):
+            joints = [[j, arm.angle(arms, j, base[j - 1] + d)] for j, d in sorted(delta.items())]
+            steps.append(dict(label=f'{PATTERNS[pattern]} 第{index}拍', joints=joints, motion_ms=step_ms, settle_ms=settle))
     plan = dict(name=name, label=spec.get('label') or PATTERNS[pattern], pattern=pattern,
-                amplitude_deg=amplitude, repeats=repeats, base_state=dict(id=base_state['id'], name=base_state['name'],
+                amplitude_deg=amplitude, repeats=repeats, source=spec.get('source'), adjusted=spec.get('adjusted'), base_state=dict(id=base_state['id'], name=base_state['name'],
                 angles=base), steps=steps, moves=sum(len(s['joints']) for s in steps),
                 duration_ms=sum(s['motion_ms'] + s['settle_ms'] for s in steps))
     plan['sha256'] = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()
