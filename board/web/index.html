@@ -1,0 +1,46 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>机械臂控制台</title><style>
+*{box-sizing:border-box}body{margin:0;background:#101923;color:#eaf1f8;font:15px/1.6 system-ui,sans-serif}main{max-width:1200px;margin:24px auto;padding:0 16px}
+h1{margin:0;font-size:26px}h2{font-size:18px;margin-top:0}a{color:#87b9df}.muted{color:#a8b9cc}
+.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:20px;margin:20px 0}.panel{background:#182534;border:1px solid #30445c;border-radius:12px;padding:18px}
+.nav{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0}.nav a{display:block;background:#1d3047;border:1px solid #3a5878;border-radius:12px;padding:16px;text-decoration:none;color:#eaf1f8}.nav a strong{display:block;font-size:17px}.nav a span{color:#a8b9cc;font-size:13px}
+.view{aspect-ratio:4/3;background:#080e15;display:grid;place-items:center;overflow:hidden;border-radius:8px}.view img{width:100%;height:100%;object-fit:contain}
+input,select{color:#eaf1f8;background:#101923;border:1px solid #49607a;border-radius:5px;padding:7px;width:100%}button{background:#397bd0;color:#fff;border:0;border-radius:6px;padding:8px 12px;cursor:pointer;margin:2px}button:disabled{opacity:.5;cursor:default}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px;border-bottom:1px solid #30445c}label{display:block;margin:8px 0}pre{white-space:pre-wrap;word-break:break-word;font-size:12px}
+#armNotice,#stateNotice,#danceNotice{color:#ffd080}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}.cards .panel{padding:12px}
+[hidden]{display:none!important}@media(max-width:800px){.grid,.nav{grid-template-columns:1fr}}
+</style><body><main>
+<h1>机械臂控制台 <small class="muted" id="armMode">连接中</small></h1>
+<p class="muted">网页上的“确定”、姿态按钮、“开始跳舞”、抓放“确认执行”和模式“开启”会让机械臂运动；网页不是硬件急停，已发出的指令无法撤回。</p>
+<nav class="nav">
+ <a href="/manipulation"><strong>框选抓放</strong><span>冻结画面 → 人工框选方块 → 生成计划 → 确认执行</span></a>
+ <a href="/modes"><strong>识别模式</strong><span>方块识别自动抓取 / 表情手势跳舞（电脑端模型驱动）</span></a>
+ <a href="/calibration"><strong>相机标定</strong><span>ChArUco 内参与随臂手眼标定、独立位置检查</span></a>
+</nav>
+<div class="grid">
+<section class="panel"><h2>实时画面 <small class="muted" id="cameraState">连接中</small></h2><div class="view"><img id="video" alt="实时画面" hidden><span id="cameraError">正在连接摄像头</span></div></section>
+<section class="panel"><h2>单关节调整</h2>
+<p class="muted">输入目标角度后回车或点该行“确定”即执行一次。一次只动一个关节，不要求先读取角度。</p>
+<button id="readJoints">读取六关节角度（不运动）</button>
+<table><thead><tr><th>关节</th><th>读数</th><th>已发送</th><th>范围 / 目标°</th><th></th></tr></thead><tbody id="jointRows"></tbody></table>
+<label>本次运动时间（500～10000 毫秒）<input id="motionTime" type="number" min="500" max="10000" step="1" value="1500"></label>
+<p id="armNotice" role="status"></p><p id="armJob" class="muted"></p></section>
+</div>
+<section class="panel" id="statePanel"><h2>姿态按钮（一键依次到位）</h2>
+<p class="muted">填写六个目标与执行顺序，分析后保存。保存不运动；点击卡片上的执行按钮即确认本次六步调整。跳舞模式的起始姿态也从这里选。</p>
+<div class="cards" id="stateButtons"></div>
+<details style="margin-top:14px"><summary>新建 / 编辑姿态按钮</summary>
+<label>姿态名称<input id="stateName" placeholder="例如：观察姿态、跳舞起点"></label>
+<div id="stateAngles" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
+<label>执行顺序（1～6 号各一次，含夹爪）<input id="stateOrder" placeholder="例如 6,1,2,3,4,5；按现场路径填写"></label>
+<label>每个关节运动时间（毫秒）<input id="stateTime" type="number" min="500" max="10000" step="1" value="1500"></label>
+<button id="stateCopyTargets">填入六个已发送目标</button><button id="stateAnalyze">分析参数（不运动）</button><button id="stateSave" disabled>保存为按钮（不运动）</button><button id="stateNew">新建另一个</button>
+<pre id="stateAnalysis"></pre></details>
+<p id="stateNotice" role="status"></p></section>
+<section class="panel" id="dancePanel" style="margin-top:20px"><h2>跳舞预设</h2>
+<p class="muted">先选起始姿态（姿态按钮）。每张卡片列出本次全部关节目标与每拍用时；点击“开始跳舞”即确认执行这一套。先按姿态按钮顺序逐关节到起始姿态，再按拍同批下发，运动中不回读。“停止后续”只停止还没发出的拍子，已发出的指令无法撤回，不是急停。</p>
+<label>起始姿态<select id="danceState"></select></label>
+<div class="cards" id="danceCards"></div>
+<button id="danceStop" hidden>停止后续拍子</button>
+<p id="danceNotice" role="status"></p></section>
+<details class="panel" style="margin-top:20px"><summary>最近一次审计记录</summary><pre id="armAudit"></pre></details>
+</main><script src="/home_ui.js"></script></body></html>

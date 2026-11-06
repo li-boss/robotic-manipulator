@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "routines": {
+    "circle": {
+      "label": "画圈",
+      "pattern": "circle",
+      "amplitude_deg": 15,
+      "repeats": 1,
+      "motion_ms": 600
+    },
+    "snake": {
+      "label": "蛇形",
+      "pattern": "snake",
+      "amplitude_deg": 20,
+      "repeats": 2,
+      "motion_ms": 600
+    }
+  },
+  "说明": "跳舞动作模板。pattern: circle(1号+4号画圈)/snake(1～6号正弦波蛇形，1、2号半幅)/sway(1号左右)/nod(4号上下)；amplitude_deg 1~30 整数；repeats 1~5；motion_ms 每拍用时 500~3000。首页“跳舞预设”按这里的 routines 显示按钮；修改后重新加载页面核对。"
+}

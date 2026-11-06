@@ -1,0 +1,42 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>识别模式</title><style>
+*{box-sizing:border-box}body{margin:0;background:#101923;color:#eaf1f8;font:15px/1.6 system-ui,sans-serif}main{max-width:1100px;margin:24px auto;padding:0 16px}
+h1{margin:0;font-size:26px}h2{font-size:18px;margin-top:0}a{color:#87b9df}.muted{color:#a8b9cc}.panel{background:#182534;border:1px solid #30445c;border-radius:12px;padding:18px;margin:16px 0}
+.tabs{display:flex;gap:10px;margin:16px 0}.tabs button{flex:1;padding:14px;font-size:16px;background:#1d3047;border:1px solid #3a5878}.tabs button.on{background:#397bd0}
+input,select{color:#eaf1f8;background:#101923;border:1px solid #49607a;border-radius:5px;padding:7px;width:100%}button{background:#397bd0;color:#fff;border:0;border-radius:6px;padding:9px 14px;cursor:pointer;margin:2px}button:disabled{opacity:.5;cursor:default}
+button.stop{background:#c0453b}label{display:block;margin:8px 0}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:5px;border-bottom:1px solid #30445c}
+pre{white-space:pre-wrap;word-break:break-word;font-size:12px}#notice{color:#ffd080}.live{border-left:4px solid #3fb950}.check label{display:flex;gap:8px;align-items:flex-start}.check input{width:auto;margin-top:5px}
+[hidden]{display:none!important}@media(max-width:700px){.row{grid-template-columns:1fr}}
+</style><body><main>
+<h1>识别模式 <small class="muted" id="mode">连接中</small></h1>
+<p class="muted"><a href="/">← 控制台</a> · 模型跑在电脑上，经网线把识别结果发给开发板。开启模式前，电脑端的任何运动请求都会被拒绝。</p>
+
+<section class="panel live" id="sessionPanel" hidden><h2>当前会话 <small id="sessionKind"></small></h2>
+<p id="sessionText"></p><button class="stop" id="disarm">关闭模式（停止后续动作）</button>
+<p class="muted">关闭只停止后续下发；已发给舵机的动作无法撤回，网页不是硬件急停。</p></section>
+
+<div class="tabs"><button id="tabBlock" class="on">方块识别自动抓取</button><button id="tabDance">表情手势跳舞</button></div>
+
+<section class="panel" id="blockPanel"><h2>方块识别自动抓取</h2>
+<p class="muted">开启后，电脑端程序会：冻结一帧（含六关节真实读数）→ 本地模型识别方块 → 把方块在图中的位置发回 → 开发板定位、完整检查路径后直接执行。每次抓取不再逐次确认。</p>
+<div class="row"><label>任务<select id="taskMode"><option value="pick_place">夹取并放到固定点（可连续）</option><option value="pickup">只夹取并抬升（1 次，结束保持夹持）</option></select></label>
+<label>放置点（框选抓放页面保存）<select id="destination"></select></label>
+<label>最多抓取次数<input id="blockMax" type="number" min="1" max="20" value="3"></label></div>
+<div class="row"><label>检测置信度下限（0～1）<input id="minScore" type="number" min="0" max="1" step="0.05" value="0.5"></label>
+<label>会话有效期（分钟）<input id="blockExpires" type="number" min="1" max="60" value="10"></label></div>
+<button id="blockPreview">预览本次会话参数（不运动）</button></section>
+
+<section class="panel" id="dancePanel" hidden><h2>表情手势跳舞</h2>
+<p class="muted">开启后，电脑端识别到约定的表情/手势时，开发板执行下面列出的一套跳舞动作（先按姿态按钮顺序到起始姿态，再摆动）。</p>
+<div class="row"><label>起始姿态（首页保存的姿态按钮）<select id="baseState"></select></label>
+<label>最多跳舞次数<input id="danceMax" type="number" min="1" max="30" value="10"></label>
+<label>两次之间最短间隔（秒）<input id="cooldown" type="number" min="0" max="60" value="3"></label></div>
+<label>允许的动作（data/dances.json）</label><div id="routineChecks"></div>
+<label>会话有效期（分钟）<input id="danceExpires" type="number" min="1" max="60" value="10"></label>
+<button id="dancePreview">预览本次会话参数（不运动）</button></section>
+
+<section class="panel" id="offerPanel" hidden><h2>核对后开启</h2><div id="offer"></div>
+<div class="check"><label><input type="checkbox" id="confirm"> <span id="confirmText"></span></label></div>
+<button id="arm" disabled>开启模式（授权以上有限次数动作）</button> <button id="cancel">取消</button></section>
+<p id="notice" role="status"></p>
+<details class="panel"><summary>最近会话</summary><pre id="history"></pre></details>
+</main><script src="/modes_ui.js"></script></body></html>

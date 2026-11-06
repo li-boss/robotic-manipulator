@@ -1,43 +1,61 @@
-# 机械臂视觉互动项目
+# 智能机械臂（DOFBOT 六自由度）
 
-当前项目以 `mechanical_arm` 中的 JJT 实现为机械臂标准，D 侧识别直接调用 JJT 现有 HTTP 接口。
+机械臂通过网线连接电脑：**开发板**负责摄像头、定位规划和舵机控制；**电脑**负责跑方块识别、表情手势识别（以及后续语音）模型，把识别结果发给开发板。
 
-| 目录 | 内容 |
-| --- | --- |
-| `mechanical_arm/` | 机械臂网页、相机、标定、规划、控制与测试 |
-| `emotion_interaction/` | 笑脸、手势和联合识别；笑脸可直接调用 JJT |
-| `speech_recognition/` | WeNet + PyTorch 的 WAV 文件语音识别，输出文字 |
-| `integration_tools/` | 模型下载、模型检查和 D 侧测试入口 |
-| `docs/` | D 侧实现与直接联调说明 |
+| 功能 | 入口 | 状态 |
+|---|---|---|
+| 单关节调整、六关节姿态按钮 | 网页首页 `/` | 在用 |
+| 人工框选方块 → 抓取/抓放 | 网页 `/manipulation` | 在用（随臂冻结定位、逆解、碰撞检查） |
+| 相机内参 / 手眼标定 | 网页 `/calibration` | 在用 |
+| 方块识别自动抓取 | 网页 `/modes` 开启 + `pc/run_block_grasp.py` | 接口完成，示例颜色检测器；等待方块识别模型 |
+| 表情手势跳舞 | 网页 `/modes` 开启 + `pc/run_gesture_dance.py` | 接口完成，键盘模拟；等待手势模型 |
+| 跳舞预设按钮（画圈 / 蛇形） | 网页首页“跳舞预设” | 在用 |
+| 电脑端规划提速 | `pc/plan_server.py`（开发板自动使用并复核，没开则本地计算） | 完成；Windows 待实测 |
+| 语音 | — | 预留，见接口指南第 6 节 |
 
-## 语音识别
+## 目录
 
-语音识别模块使用本地 WenetSpeech 检查点，提供 `auto`、`cpu`、`mps`、`cuda` 设备选项。
-安装及模型资源说明见 [speech_recognition/README.md](speech_recognition/README.md)。
-当前仅完成代码编写，尚未安装依赖或验证推理。
-
-在项目根目录输入 WAV 文件路径：
-
-```shell
-python -m speech_recognition.demo /path/to/audio.wav --device cpu
+```
+board/     开发板端：网页服务、控制层（arm.py）、抓放规划、模式会话、网页、模型、配置模板、测试、simulate.py
+pc/        电脑端：armlink 通信库、block_vision / gesture 插件接口、运行脚本、规划服务 plan_server.py、测试
+docs/      文档（接口与合并指南、部署、算法说明、标定说明、标定板 PDF）
+tools/     run_tests.sh、Mac 启动器、设备数据迁移
+机械臂课程资料/   课程原始资料（只读参考，体积大，不入 git）
 ```
 
-## 直接联调
+## 先读
 
-JJT 服务保持原接口：
+- 方块识别同学：[docs/给方块识别同学.md](docs/给方块识别同学.md)（接口、放哪里、怎么联调和上实机，自成一体）。
+- 表情手势同学：[docs/给表情手势同学.md](docs/给表情手势同学.md)。
 
-- `GET /control/status`：读取模式、忙碌状态、CSRF 和已保存六关节姿态；
-- `POST /control/states/execute`：执行一个经过页面保存的六关节姿态。
+- 队友：[docs/接口与合并指南.md](docs/接口与合并指南.md) —— 怎么写检测器/识别器、怎么联调、怎么合并。
+- 机械臂控制：[docs/开发板部署与启动.md](docs/开发板部署与启动.md)、[docs/抓放系统实现与算法说明.md](docs/抓放系统实现与算法说明.md)、[docs/相机标定使用说明.md](docs/相机标定使用说明.md)。
+- 所有人：[AGENTS.md](AGENTS.md) 与 [机械臂操作准则.md](机械臂操作准则.md) —— 运动授权与安全规则，代码里强制执行。
 
-D 侧不自行定义机械臂动作参数。操作者先在 JJT 网页保存和核对有限姿态，再明确给出动作序列：
+## 快速开始（无硬件）
 
-```powershell
-.venv\Scripts\python.exe -m emotion_interaction.smile_demo `
-  --robot-url http://192.168.137.100:8080 `
-  --action WAVE `
-  --states "wave_left,wave_right,wave_left,wave_home"
+```bash
+python board/simulate.py
 ```
 
-笑脸确认后，程序显示完整计划并要求输入本次 `EXECUTE <request_id>`。只有输入完全一致才逐步调用 JJT；异常时停止后续步骤且不重发。未提供 `--robot-url` 和 `--states` 时仅本地识别。
+浏览器打开 <http://127.0.0.1:8092/modes> 开启模式，然后：
 
-机械臂启动方式和实机限制见 [mechanical_arm/README.md](mechanical_arm/README.md)，识别环境和模型见 [emotion_interaction/README.md](emotion_interaction/README.md)。
+```bash
+python pc/run_block_grasp.py --board http://127.0.0.1:8092 --once
+```
+
+全部测试（假设备，不连机械臂）：
+
+```bash
+zsh tools/run_tests.sh
+```
+
+## 实机
+
+```bash
+python3 -B tools/mac/service.py --start --real
+```
+
+或双击 `启动机械臂网页.command`（启动开发板网页后，同一窗口接着运行本机电脑端规划，保持窗口打开即可）。网页已在运行时，只需双击 `启动电脑端规划.command`。打开 <http://192.168.137.100:8080>。启动本身不运动；运动只在网页上当次确认（或开启模式）后发生。
+
+重构前的完整项目（含历史部署脚本、实施报告与证据）备份在 `../mechanicalArm_backup_before_refactor_20261106.tar.gz`。

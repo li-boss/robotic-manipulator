@@ -1,4 +1,0 @@
-# 旧版 Whisper 的 setup.py 使用 pkg_resources，构建隔离环境须保留该接口。
-# 仅在安装时约束构建依赖，不属于模型推理依赖。
-setuptools==75.8.0
-wheel==0.45.1

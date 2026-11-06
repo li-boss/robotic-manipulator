@@ -1,19 +1,27 @@
-# Local data, model weights, credentials and generated files
+# 本地环境
+.venv*/
 __pycache__/
-*.py[cod]
-.venv/
-.env
-.env.*
-!.env.example
-data/
-models/
-*.pt
-*.pth
-*.onnx
-*.bag
-logs/
-tmp/
-*.db
-*.sqlite3
-.pytest_cache/
+*.pyc
 .DS_Store
+
+# 开发板运行数据（配置模板保留，运行记录不入库）
+board/data/logs/
+board/data/*.pid
+board/data/.hardware.lock
+board/data/*.tmp
+board/data/*.lock
+board/data/*.before_*
+board/data/charuco_calibration.json
+board/data/manual_states.json
+board/data/teaching_setup.json
+board/data/teaching_cards.json
+
+# 队友模型权重（放网盘，不入库）
+pc/block_vision/weights/
+pc/gesture/weights/
+
+# 课程原始资料（体积大、版权归课程方，只在本地参考）
+机械臂课程资料/
+
+# 本机工具配置
+.claude/
