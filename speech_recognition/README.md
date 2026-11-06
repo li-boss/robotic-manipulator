@@ -12,10 +12,10 @@ speech_recognition/
 ├── requirements.txt         # 运行依赖
 ├── build-constraints.txt    # 安装时的构建依赖约束
 ├── models/wenet/            # 模型文件
-│   ├── final.pt
-│   ├── train.yaml
-│   ├── units.txt
-│   └── global_cmvn
+│   ├── final.pt             # 训练好的模型参数
+│   ├── train.yaml           # 网络结构和音频处理配置
+│   ├── units.txt            # 词表
+│   └── global_cmvn          # 特征归一化所需的数据
 └── data/sample.wav          # 示例音频
 ```
 

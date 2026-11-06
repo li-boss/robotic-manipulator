@@ -1,5 +1,3 @@
-"""在 CPU 上读取 WAV、重采样并提取与 WeNet 训练一致的特征。"""
-
 from pathlib import Path
 from typing import Sequence
 

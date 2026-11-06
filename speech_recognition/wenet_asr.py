@@ -1,5 +1,3 @@
-"""WenetSpeech U2++ Conformer：本地检查点加载及 CTC 贪心识别。"""
-
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -67,21 +65,38 @@ class WeNetASR:
             raise ValueError("train.yaml 格式错误") from exc
         if not isinstance(self.config, dict):
             raise ValueError("train.yaml 须为配置字典")
-        required = {"input_dim", "output_dim", "encoder_conf", "decoder_conf",
-                    "model_conf", "dataset_conf", "tokenizer_conf", "cmvn_conf"}
+        required = {
+            "input_dim",
+            "output_dim",
+            "encoder_conf",
+            "decoder_conf",
+            "model_conf",
+            "dataset_conf",
+            "tokenizer_conf",
+            "cmvn_conf",
+        }
         missing = required - self.config.keys()
         if missing:
             raise ValueError(f"模型配置缺少字段：{', '.join(sorted(missing))}")
-        supported = {"encoder": "conformer", "decoder": "bitransformer",
-                     "model": "asr_model", "tokenizer": "char", "cmvn": "global_cmvn"}
+        supported = {
+            "encoder": "conformer",
+            "decoder": "bitransformer",
+            "model": "asr_model",
+            "tokenizer": "char",
+            "cmvn": "global_cmvn",
+        }
         for key, expected in supported.items():
             if self.config.get(key) != expected:
-                raise ValueError(f"本模块要求 {key}={expected}，请使用配套 WenetSpeech 模型")
+                raise ValueError(
+                    f"本模块要求 {key}={expected}，请使用配套 WenetSpeech 模型"
+                )
         if self.config["encoder_conf"].get("input_layer") != "conv2d":
             raise ValueError("本模块当前要求 conv2d 四倍下采样模型")
 
         # 只修改内存中的配置，避免依赖发布包里的 exp/... 或当前工作目录。
-        self.config["tokenizer_conf"]["symbol_table_path"] = str(self.model_dir / "units.txt")
+        self.config["tokenizer_conf"]["symbol_table_path"] = str(
+            self.model_dir / "units.txt"
+        )
         self.config["cmvn_conf"]["cmvn_file"] = str(self.model_dir / "global_cmvn")
         self.vocab = load_vocab(self.model_dir / "units.txt")
         if len(self.vocab) != self.config["output_dim"]:
@@ -90,7 +105,8 @@ class WeNetASR:
         if self.vocab.get(self.blank_id) != "<blank>":
             raise ValueError("CTC blank 编号与词表不一致")
         self.special_ids = {
-            key for key, value in self.vocab.items()
+            key
+            for key, value in self.vocab.items()
             if value in {"<blank>", "<sos>", "<eos>", "<sos/eos>"}
         }
         dataset = self.config["dataset_conf"]
@@ -113,7 +129,10 @@ class WeNetASR:
         from wenet.transformer.cmvn import GlobalCMVN
         from wenet.transformer.ctc import CTC
         from wenet.transformer.decoder import BiTransformerDecoder
-        from wenet.transformer.embedding import PositionalEncoding, RelPositionalEncoding
+        from wenet.transformer.embedding import (
+            PositionalEncoding,
+            RelPositionalEncoding,
+        )
         from wenet.transformer.encoder import ConformerEncoder
         from wenet.utils.cmvn import load_cmvn
 
@@ -121,18 +140,26 @@ class WeNetASR:
         mean, inverse_std = load_cmvn(
             cfg["cmvn_conf"]["cmvn_file"], cfg["cmvn_conf"]["is_json_cmvn"]
         )
-        cmvn = GlobalCMVN(torch.as_tensor(mean).float(), torch.as_tensor(inverse_std).float())
-        encoder = ConformerEncoder(cfg["input_dim"], global_cmvn=cmvn, **cfg["encoder_conf"])
+        cmvn = GlobalCMVN(
+            torch.as_tensor(mean).float(), torch.as_tensor(inverse_std).float()
+        )
+        encoder = ConformerEncoder(
+            cfg["input_dim"], global_cmvn=cmvn, **cfg["encoder_conf"]
+        )
         decoder = BiTransformerDecoder(
             cfg["output_dim"], encoder.output_size(), **cfg["decoder_conf"]
         )
         model = ASRModel(
-            vocab_size=cfg["output_dim"], encoder=encoder, decoder=decoder,
+            vocab_size=cfg["output_dim"],
+            encoder=encoder,
+            decoder=decoder,
             ctc=CTC(cfg["output_dim"], encoder.output_size(), blank_id=self.blank_id),
             special_tokens=cfg["tokenizer_conf"].get("special_tokens"),
             **cfg["model_conf"],
         )
-        state = torch.load(self.model_dir / "final.pt", map_location="cpu", weights_only=True)
+        state = torch.load(
+            self.model_dir / "final.pt", map_location="cpu", weights_only=True
+        )
         if not isinstance(state, Mapping):
             raise ValueError("final.pt 不是预期的 PyTorch state_dict")
         # 2022 年检查点未保存固定的正弦位置编码；v3.1.0 将其注册为持久 buffer。
@@ -173,7 +200,9 @@ class WeNetASR:
         """将已经完成 CTC 合并的编号转为文字，保留未知词标记。"""
         texts = []
         for sequence in sequences:
-            tokens = [self.vocab[index] for index in sequence if index not in self.special_ids]
+            tokens = [
+                self.vocab[index] for index in sequence if index not in self.special_ids
+            ]
             texts.append("".join(tokens).replace("▁", " ").strip())
         return texts
 
