@@ -9,7 +9,7 @@ import yaml
 from .audio import compute_fbank, load_wav, pad_sequence, resample
 
 
-DEFAULT_MODEL_DIR = Path(__file__).resolve().parent / "models" / "wenetspeech"
+DEFAULT_MODEL_DIR = Path(__file__).resolve().parent / "models" / "wenet"
 
 
 def load_vocab(path: str | Path) -> dict[int, str]:

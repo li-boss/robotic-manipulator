@@ -9,7 +9,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="使用本地 WeNet 模型将 WAV 语音转成文字")
     parser.add_argument("wav", type=Path, help="输入 WAV 文件路径")
     parser.add_argument("--model-dir", type=Path,
-                        default=Path(__file__).resolve().parent / "models" / "wenetspeech",
+                        default=Path(__file__).resolve().parent / "models" / "wenet",
                         help="包含 final.pt、train.yaml、units.txt、global_cmvn 的目录")
     parser.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto",
                         help="auto 按 CUDA → MPS → CPU 的顺序选择，默认 auto")
