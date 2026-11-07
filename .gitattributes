@@ -1,0 +1,2 @@
+# Model hashes bind to the exact LF bytes stored in Git, including on Windows.
+board/models/**/*.urdf text eol=lf
