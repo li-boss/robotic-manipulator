@@ -1,0 +1,8 @@
+{
+  "source": "https://github.com/SirAlexiner/HandGestureRecognition",
+  "upstream_commit": "f13db616a66f521882fac2d6c02322854ebb1343",
+  "model_sha256": "121ca234159eecb18c1b7c858285db8048d0157cc87bc3ddaedbda6d20d09298",
+  "label_evidence": "images/confusion_matrix.png axis order; train.py ImageFolder.classes uses alphabetical ordering. Verify against packaged examples before use.",
+  "labels": ["alien", "bird", "bird_alt", "call", "cross", "fist", "four", "four_alt", "l", "little", "love", "ok", "one", "peace", "point", "rock", "rock_alt", "stop", "three", "three_alt", "thumb_down", "thumb_out", "thumb_up", "zero"],
+  "project_labels": {"fist": "fist", "thumb_up": "like", "ok": "ok", "stop": "palm"}
+}
