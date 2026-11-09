@@ -1,0 +1,23 @@
+{
+  "version": "experimental-hsv-20261030-v3-roi",
+  "description": "Atlas USB camera 640x480 development thresholds; validate again after camera or lighting changes",
+  "expected_image_size": [640, 480],
+  "classes": {
+    "block_blue": {"hue_ranges": [[94, 116]], "saturation_min": 110, "value_min": 180},
+    "block_green": {"hue_ranges": [[60, 91]], "saturation_min": 100, "value_min": 70},
+    "block_red": {"hue_ranges": [[0, 10], [170, 179]], "saturation_min": 110, "value_min": 100},
+    "block_yellow": {"hue_ranges": [[17, 38]], "saturation_min": 110, "value_min": 180}
+  },
+  "min_region_area_px": 250,
+  "min_region_fraction_of_box": 0.08,
+  "max_second_component_ratio": 0.25,
+  "roi_expand_fraction": 0.08,
+  "min_original_box_overlap": 0.65,
+  "min_region_box_margin_px": 3,
+  "min_solidity": 0.93,
+  "max_quad_aspect_ratio": 1.8,
+  "min_quad_iou": 0.88,
+  "min_quad_area_ratio": 0.9,
+  "max_quad_area_ratio": 1.12,
+  "frame_border_margin_px": 2
+}

@@ -1,0 +1,7 @@
+# Verified Windows Python 3.10.11 CPU environment. Reuse the existing venv first.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.7.1+cpu
+torchvision==0.22.1+cpu
+ultralytics==8.4.183
+numpy==2.2.6
+opencv-python==5.0.0.93

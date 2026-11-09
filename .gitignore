@@ -25,3 +25,9 @@ pc/gesture/weights/
 
 # 本机工具配置
 .claude/
+
+# A 模块：测试与迁移验证材料只保留本地，不入库
+pc/tests/test_block_*.py
+pc/block_vision/check_simulator.py
+pc/block_vision/validate_migration.py
+pc/block_vision/migration_report_*.json
