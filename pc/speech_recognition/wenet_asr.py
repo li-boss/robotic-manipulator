@@ -33,16 +33,12 @@ def load_vocab(path: str | Path) -> dict[int, str]:
 
 
 def select_device(name: str) -> torch.device:
-    """自动选择 CUDA、MPS、CPU；显式请求不可用设备时直接报错。"""
+    """自动选择 CUDA 或 CPU；MPS 需显式指定。"""
     if name not in {"auto", "cpu", "mps", "cuda"}:
         raise ValueError(f"不支持的设备：{name}")
     if name == "auto":
-        if torch.cuda.is_available():
-            name = "cuda"
-        elif torch.backends.mps.is_available():
-            name = "mps"
-        else:
-            name = "cpu"
+        # 当前 WeNet/PyTorch 组合在 Mac MPS 上会对已验证样例输出空文本。
+        name = "cuda" if torch.cuda.is_available() else "cpu"
     if name == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA 不可用，请检查 NVIDIA 驱动及 PyTorch 安装版本")
     if name == "mps" and not torch.backends.mps.is_available():

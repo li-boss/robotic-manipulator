@@ -19,6 +19,7 @@ board/data/teaching_cards.json
 # 队友模型权重（放网盘，不入库）
 pc/block_vision/weights/
 pc/gesture/weights/
+pc/speech_recognition/models/
 
 # 课程原始资料（体积大、版权归课程方，只在本地参考）
 机械臂课程资料/

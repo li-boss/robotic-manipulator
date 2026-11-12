@@ -1,0 +1,28 @@
+# WAV 推理环境：Python 3.11.17 + WeNet v3.1.0。
+# 安装时同时使用 --build-constraint pc/speech_recognition/build-constraints.txt。
+# 固定直接依赖和关键数值计算依赖；此文件不是完整的传递依赖锁文件。
+
+# WeNet v3.1.0 从 torch.nn.modules.conv 导入 Union 等旧符号；勿单独升级 torch。
+torch==2.2.2
+torchaudio==2.2.2
+
+# PyTorch 2.2 的 NumPy 桥接使用 NumPy 1.x。
+numpy==1.26.4
+soundfile==0.12.1
+PyYAML==6.0.2
+sentencepiece==0.2.0
+
+# WeNet 官方 setup.py 声明的运行依赖。
+requests==2.32.3
+tqdm==4.66.5
+librosa==0.10.2.post1
+openai-whisper==20231117
+
+# 固定 librosa/Whisper 的关键传递依赖，避免数值库版本继续漂移。
+scipy==1.13.1
+numba==0.60.0
+llvmlite==0.43.0
+tiktoken==0.7.0
+
+# 固定 WeNet v3.1.0 提交的源码包；避免安装时拉取无关的 Git 子模块。
+wenet @ https://github.com/wenet-e2e/wenet/archive/2d8bb9780f5b23da65abee37fd612a1fa2f2f4e8.tar.gz

@@ -18,7 +18,7 @@ def main() -> int:
         "--device",
         choices=("auto", "cpu", "mps", "cuda"),
         default="auto",
-        help="auto 按 CUDA → MPS → CPU 的顺序选择，默认 auto",
+        help="auto 优先 CUDA，否则 CPU；MPS 需显式指定",
     )
     args = parser.parse_args()
     if not args.wav.expanduser().is_file():
@@ -32,13 +32,13 @@ def main() -> int:
         text = recognizer.transcribe(args.wav)
     except ImportError as exc:
         print(
-            f"依赖导入失败：{exc}。请按 speech_recognition/README.md 安装环境。",
+            f"依赖导入失败：{exc}。请按 pc/speech_recognition/README.md 安装环境。",
             file=sys.stderr,
         )
         return 1
     except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
         print(f"识别失败：{exc}", file=sys.stderr)
-        if args.device in {"mps", "auto"}:
+        if args.device == "mps":
             print("如遇 MPS 算子兼容问题，可显式指定 --device cpu。", file=sys.stderr)
         return 1
     print(text)
