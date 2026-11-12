@@ -11,13 +11,13 @@
 | 表情手势跳舞 | 网页 `/modes` 开启 + `pc/run_gesture_dance.py` | 电脑端手势/微笑模型接入；默认读取开发板摄像头 |
 | 跳舞预设按钮（画圈 / 课程舞蹈） | 网页首页“跳舞预设” | 在用 |
 | 电脑端规划提速 | `pc/plan_server.py`（开发板自动使用并复核，没开则本地计算） | 完成；Windows 待实测 |
-| 语音识别 | `pc/speech_recognition/` | WAV 离线转写已实现；指令对接预留，见接口指南第 6 节 |
+| 语音控制 | `pc/speech_recognition/`、`pc/voice_control/`、`pc/run_voice_dance.py` | WAV/按键录音识别固定口令，触发已授权的画圈或课程舞蹈，见接口指南第 6 节 |
 
 ## 目录
 
 ```
 board/     开发板端：网页服务、控制层（arm.py）、抓放规划、模式会话、网页、模型、配置模板、测试、simulate.py
-pc/        电脑端：armlink 通信库、block_vision / gesture / speech_recognition 识别模块、运行脚本、规划服务 plan_server.py、测试
+pc/        电脑端：armlink 通信库、block_vision / gesture / speech_recognition / voice_control 模块、运行脚本、规划服务 plan_server.py、测试
 docs/      文档（接口与合并指南、部署、算法说明、标定说明、标定板 PDF）
 tools/     run_tests.sh、Mac 启动器、设备数据迁移
 机械臂课程资料/   课程原始资料（只读参考，体积大，不入 git）
