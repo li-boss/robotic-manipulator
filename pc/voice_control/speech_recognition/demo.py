@@ -32,7 +32,7 @@ def main() -> int:
         text = recognizer.transcribe(args.wav)
     except ImportError as exc:
         print(
-            f"依赖导入失败：{exc}。请按 pc/speech_recognition/README.md 安装环境。",
+            f"依赖导入失败：{exc}。请按 pc/voice_control/speech_recognition/README.md 安装环境。",
             file=sys.stderr,
         )
         return 1

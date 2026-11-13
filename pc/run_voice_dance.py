@@ -56,7 +56,7 @@ def main(argv=None) -> int:
         parser.error(f"WAV 文件不存在：{args.wav}")
 
     try:
-        from pc.speech_recognition.wenet_asr import DEFAULT_MODEL_DIR, WeNetASR
+        from pc.voice_control.speech_recognition.wenet_asr import DEFAULT_MODEL_DIR, WeNetASR
 
         recognizer = WeNetASR(
             model_dir=args.model_dir or DEFAULT_MODEL_DIR, device="cpu"

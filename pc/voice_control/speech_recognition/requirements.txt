@@ -1,5 +1,5 @@
 # WAV 推理环境：Python 3.11.17 + WeNet v3.1.0。
-# 安装时同时使用 --build-constraint pc/speech_recognition/build-constraints.txt。
+# 安装时同时使用 --build-constraint pc/voice_control/speech_recognition/build-constraints.txt。
 # 固定直接依赖和关键数值计算依赖；此文件不是完整的传递依赖锁文件。
 
 # WeNet v3.1.0 从 torch.nn.modules.conv 导入 Union 等旧符号；勿单独升级 torch。
