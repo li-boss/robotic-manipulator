@@ -30,11 +30,27 @@ class FakeASR:
 
 class CommandTests(unittest.TestCase):
     def test_only_complete_commands_match(self):
-        self.assertEqual(parse_command("机械臂，画圈！"), "circle")
+        for text in ("画圈", "画个圈", "画一个圈", "画一圈", "画圆圈",
+                     "机械臂，画圈！", "机械臂画一个圈", "请机械臂画圈"):
+            with self.subTest(text=text):
+                self.assertEqual(parse_command(text), "circle")
         self.assertEqual(parse_command("机 械 臂 跳 课 程 舞。"), "course")
-        for text in ("", "画圈", "请机械臂画圈", "机械臂画圈一下", "机械臂跳舞", "机械臂画圈然后跳课程舞"):
+        for text in ("", "不要画圈", "画圈吗", "机械臂画圈一下", "机械臂跳舞", "机械臂画圈然后跳课程舞"):
             with self.subTest(text=text):
                 self.assertIsNone(parse_command(text))
+
+    def test_command_table_is_loaded_and_rejects_conflicts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "commands.json"
+            path.write_text(json.dumps({"circle": ["画一个圆"], "course": ["跳课程舞"]}))
+            self.assertEqual(parse_command("画一个圆", path), "circle")
+            self.assertIsNone(parse_command("画圈", path))
+            path.write_text(json.dumps({"circle": ["画圈"], "course": ["画 圈！"]}))
+            with self.assertRaises(ValueError):
+                parse_command("画圈", path)
+            path.write_text(json.dumps({"unknown": ["画圈"]}))
+            with self.assertRaises(ValueError):
+                parse_command("画圈", path)
 
     def test_empty_or_unknown_text_never_contacts_board(self):
         class NoBoard:
@@ -93,13 +109,13 @@ class LocalHttpTests(unittest.TestCase):
         self.addCleanup(server.shutdown)
         client = BoardClient(f"http://127.0.0.1:{server.server_port}")
         logs = []
-        asr = FakeASR("机械臂画圈")
+        asr = FakeASR("画一个圈")
         self.assertTrue(run_once("command.wav", asr, client, logs.append))
         self.assertEqual(len(state["requests"]), 1)
         body = state["requests"][0]
         self.assertEqual(body["session_id"], "a" * 32)
         self.assertEqual(body["routine"], "circle")
-        self.assertEqual(body["label"], "机械臂画圈")
+        self.assertEqual(body["label"], "画一个圈")
         self.assertEqual(len(body["request_id"]), 32)
         self.assertTrue(any("completed" in line for line in logs))
 
