@@ -39,6 +39,23 @@ def _hex32(value, name):
     return value
 
 
+def segment_rows(q0, q1, joints, lag):
+    """同批下发一段的采样：五个关节线性插值 + 按发送顺序每关节滞后 lag（占用时比例）的包络。"""
+    q0, q1 = [float(v) for v in q0[:5]], [float(v) for v in q1[:5]]
+    order = [j - 1 for j in joints if j <= 5]
+    span = max(abs(a - b) for a, b in zip(q0, q1))
+    if span == 0:
+        return []
+    count = max(1, int(math.ceil(span / .25)))
+    rows = [[a + (b - a) * n / count for a, b in zip(q0, q1)] for n in range(count + 1)]
+    total = 1 + lag * max(len(order) - 1, 0)
+    for n in range(count + len(order)):
+        t = total * n / max(1, count + len(order) - 1)
+        rows.append([q0[j] + min(max(t - order.index(j) * lag, 0), 1) * (q1[j] - q0[j]) if j in order else q0[j]
+                     for j in range(5)])
+    return rows
+
+
 def detection_to_target(detection, image_size, frame_id, task_mode, destination, block_size_id):
     """把电脑端的方块检测结果转换成抓放模块的统一目标结构（source='vision'）。
 
@@ -180,7 +197,7 @@ class Modes:
                     max_actions=_int(fields, 'max_actions', 10, 1, 30, '最多跳舞次数'),
                     cooldown_s=_int(fields, 'cooldown_s', 3, 0, 60, '两次之间最短间隔(秒)'),
                     expires_minutes=expires_min,
-                    conditions='每套动作先按姿态按钮顺序逐关节到起始姿态，再按列出的整数目标摆动；'
+                    conditions='每套动作先回到起始姿态（已到位的关节跳过；其余全部同批在300 ms内到位，读数不全或模型检查不通过则不运动、本次失败），再按列出的整数目标摆动；'
                                '运动中不回读，周围留出摆动空间；失败立即结束会话，不重试、不复位、不松爪。')
 
     def preview(self, fields):
@@ -234,7 +251,7 @@ class Modes:
     def check_collision(self, routine):
         """用抓放的CAD碰撞模型检查：起始姿态 → 每一拍（同批下发线性插值 + 20 ms发送滞后包络）。
 
-        到起始姿态的逐关节步骤从当前未知姿态出发，与姿态按钮相同，不在检查范围内。
+        到起始姿态一步从执行时的实际读数出发，在 run_dance 中单独检查（check_start_move）。
         结果按动作、模型与配置缓存。模型为CAD估计，未实测；不代表实机轨迹已验证。"""
         cfg = self.manipulation.load()
         if cfg.get('cad') is None:
@@ -256,22 +273,13 @@ class Modes:
             try:
                 robot.collision(state, None, margin)
                 for index, step in enumerate(beats, 1):
-                    order = [j - 1 for j, _ in step['joints'] if j <= 5]
                     q0 = list(state)
                     for j, v in step['joints']:
                         if j <= 5:
                             state[j - 1] = float(v)
-                    q0, q1 = [float(v) for v in q0], [float(v) for v in state]
-                    span = max(abs(a - b) for a, b in zip(q0, q1))
-                    if span == 0:
+                    rows = segment_rows(q0, state, [j for j, _ in step['joints']], lag)
+                    if not rows:
                         continue
-                    count = max(1, int(math.ceil(span / .25)))
-                    rows = [[a + (b - a) * n / count for a, b in zip(q0, q1)] for n in range(count + 1)]
-                    total = 1 + lag * max(len(order) - 1, 0)
-                    for n in range(count + len(order)):
-                        t = total * n / max(1, count + len(order) - 1)
-                        rows.append([q0[j] + min(max(t - order.index(j) * lag, 0), 1) * (q1[j] - q0[j]) if j in order else q0[j]
-                                     for j in range(5)])
                     samples += len(rows)
                     try:
                         robot.collision_samples(rows, None, margin)
@@ -285,6 +293,56 @@ class Modes:
                 self.collision_cache.clear()
             self.collision_cache[key] = result
             return result
+
+    def check_start_move(self, current, joints, motion_ms):
+        """从执行时的实际读数到起始姿态、同批下发的模型碰撞检查（线性插值 + 发送滞后包络）。返回错误文字或 None。"""
+        cfg = self.manipulation.load()
+        if cfg.get('cad') is None:
+            return '未配置CAD碰撞模型'
+        from manipulation_geometry import ManipulationRobot
+        robot = ManipulationRobot(cfg, self.control.config())
+        margin = robot._cad_reach * math.radians(1.25)
+        q1 = list(current)
+        for j, v in joints:
+            if j <= 5:
+                q1[j - 1] = float(v)
+        try:
+            robot.collision([float(v) for v in current], None, margin)
+            rows = segment_rows(current, q1, [j for j, _ in joints], robot.SEND_GAP_MS / max(1, motion_ms))
+            if rows:
+                robot.collision_samples(rows, None, margin)
+        except ValueError as exc:
+            return str(exc)
+        return None
+
+    def _move_to_start(self, controller, p, index, step, base_cfg):
+        """用户11-13：跳舞前回到起始姿态。已到位（±1°）的关节跳过；全部到位则不等待直接开始第一拍；
+        其余关节同批在300 ms内到位，读数不全或模型检查不通过则不运动并报错。"""
+        rows = self.control.read_rows(base_cfg, allow_failed=True)
+        known = {r['id']: r['angle'] for r in rows if r['read_ok']}
+        need = [[j, v] for j, v in step['joints'] if j not in known or abs(known[j] - v) > 1]
+        if not need:
+            self.control.record('dance_start_pose', dict(id=p['token'], start_move='already_there', readings=rows))
+            return
+        missing = [j for j in range(1, 6) if j not in known]
+        error = f'{missing}号关节读取失败，无法检查回到竖直的路径' if missing else None
+        if error is None and any(j <= 5 for j, _ in need):
+            error = self.check_start_move([float(known[j]) for j in range(1, 6)], need, step['motion_ms'])
+        self.control.record('dance_start_pose', dict(id=p['token'], start_move='sync' if error is None else 'refused',
+                                                     reason=error, readings=rows, joints=need))
+        if error is not None:
+            # 用户11-13要求全部关节同步回到竖直，不再逐关节；同步路径不能确认时不运动。
+            raise ValueError('未开始跳舞（未运动）：' + error + '；请先用“' + step['label'].split('：')[-1] + '”姿态按钮回到起始姿态再试')
+        controller.config = dict(base_cfg, motion_ms=step['motion_ms'], settle_ms=step['settle_ms'])
+        self.control.record('sending', dict(id=p['token'], step=index, joints=need, operation='dance'))
+        try:
+            controller.write([tuple(pair) for pair in need], retries=arm.MAX_WRITE_RETRIES, start_move=True)
+        finally:
+            for retry in getattr(controller, 'last_retries', []):
+                self.control.record('write_retry', dict(id=p['token'], step=index, **retry))
+        with self.control.lock:
+            for joint, value in need:
+                self.control.commanded[str(joint)] = value
 
     def _web_routine(self, fields):
         name = fields.get('routine')
@@ -302,6 +360,23 @@ class Modes:
         except ValueError as exc:
             raise ValueError(f'“{available[name].get("label", name)}”从起始姿态“{base["name"]}”出发不能执行：{exc}；请换起始姿态或修改 dances.json') from None
         return routine, states['sha256']
+
+    def warm_dance_checks(self):
+        """服务启动后在后台预先做各跳舞预设 × 各姿态按钮的模型碰撞检查并缓存（纯计算，不运动），
+        让网页卡片和“开始跳舞”不用等首次20～30秒的检查。不合法的组合直接跳过。"""
+        try:
+            names = list(load_routines(self.dances_path)['routines'])
+            states = [s['id'] for s in self.control.states.status()['states']]
+        except Exception:
+            return
+        for state_id in states:
+            for name in names:
+                try:
+                    with self.control.lock:
+                        routine, _ = self._web_routine(dict(routine=name, state_id=state_id))
+                    self.check_collision(routine)
+                except Exception:
+                    continue
 
     def dance_presets(self):
         with self.control.lock:
@@ -534,7 +609,8 @@ class Modes:
         for step in steps:   # 整套先校验，任何目标非法都不下发第一条
             for joint, value in step['joints']:
                 arm.angle(base_cfg, joint, value)
-            arm.timing(dict(base_cfg, motion_ms=step['motion_ms'], settle_ms=step['settle_ms']))
+            arm.timing(dict(base_cfg, motion_ms=step['motion_ms'], settle_ms=step['settle_ms']),
+                       start_move=step['label'].startswith('到起始姿态'))
         for index, step in enumerate(steps):
             with self.control.lock:
                 if args.get('session') is None:
@@ -544,13 +620,16 @@ class Modes:
                     return dict(status='stopped', message=f'模式已关闭，停止后续动作（已下发{index}/{len(steps)}步）')
             if self.control.audit(args)['hashes'] != p['audit']['hashes']:
                 raise ValueError('执行期间规则、代码或配置变化，停止后续动作')
-            controller.config = dict(base_cfg, motion_ms=step['motion_ms'], settle_ms=step['settle_ms'])
-            self.control.record('sending', dict(id=p['token'], step=index, joints=step['joints'], operation='dance'))
-            try:
-                controller.write([tuple(pair) for pair in step['joints']], retries=arm.MAX_WRITE_RETRIES)
-            finally:
-                for retry in getattr(controller, 'last_retries', []):
-                    self.control.record('write_retry', dict(id=p['token'], step=index, **retry))
+            if step['label'].startswith('到起始姿态'):
+                self._move_to_start(controller, p, index, step, base_cfg)
+            else:
+                controller.config = dict(base_cfg, motion_ms=step['motion_ms'], settle_ms=step['settle_ms'])
+                self.control.record('sending', dict(id=p['token'], step=index, joints=step['joints'], operation='dance'))
+                try:
+                    controller.write([tuple(pair) for pair in step['joints']], retries=arm.MAX_WRITE_RETRIES)
+                finally:
+                    for retry in getattr(controller, 'last_retries', []):
+                        self.control.record('write_retry', dict(id=p['token'], step=index, **retry))
             with self.control.lock:
                 for joint, value in step['joints']:
                     self.control.commanded[str(joint)] = value

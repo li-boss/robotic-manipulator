@@ -13,6 +13,12 @@ from dance import build_routine, offsets
 from modes import detection_to_target
 
 BASE_ID = '0' * 32
+
+
+def expected_calls(steps, start):
+    """到起始姿态：只下发与执行时读数相差超过1°的关节（同批）；其后每拍原样下发。"""
+    first = [(j, v) for j, v in steps[0]['joints'] if abs(start[j - 1] - v) > 1]
+    return ([first] if first else []) + [[tuple(x) for x in s['joints']] for s in steps[1:]]
 OTHER_ID = '1' * 32     # 模拟器里非竖直的姿态按钮（课程舞蹈不能从这里出发）
 
 
@@ -84,10 +90,12 @@ class ModesTests(unittest.TestCase):
         session = self.dance_session()
         planned = session['plan']['routines']['music']['steps']
         request = dict(session_id=session['id'], routine='music', request_id='b' * 32, label='smile', confidence=.9)
+        start = list(simulate.SimFake.values)
         self.modes.api_gesture(request);self.wait()
-        self.assertEqual(simulate.SimFake.calls, [[tuple(p) for p in s['joints']] for s in planned])
+        calls = expected_calls(planned, start)
+        self.assertEqual(simulate.SimFake.calls, calls)
         again = self.modes.api_gesture(request)
-        self.assertTrue(again['duplicate']);self.assertEqual(len(simulate.SimFake.calls), len(planned))
+        self.assertTrue(again['duplicate']);self.assertEqual(len(simulate.SimFake.calls), len(calls))
         self.assertEqual(self.control.job['status'], 'completed')
 
     def test_dance_limits_cooldown_and_unauthorized_routine(self):
@@ -175,10 +183,66 @@ class ModesTests(unittest.TestCase):
         self.assertTrue(preview['collision']['checked'] and preview['collision']['ok'])
         self.assertEqual(simulate.SimFake.calls, [])            # 预览不运动
         fields = dict(request_id='c' * 32)
+        start = list(simulate.SimFake.values)
         self.web_start(preview, **fields);self.wait()
-        self.assertEqual(simulate.SimFake.calls, [[tuple(p) for p in s['joints']] for s in preview['routine']['steps']])
+        calls = expected_calls(preview['routine']['steps'], start)
+        self.assertEqual(simulate.SimFake.calls, calls)
         again = self.web_start(preview, **fields)
-        self.assertTrue(again['duplicate']);self.assertEqual(len(simulate.SimFake.calls), len(preview['routine']['steps']))
+        self.assertTrue(again['duplicate']);self.assertEqual(len(simulate.SimFake.calls), len(calls))
+
+    # ---------------------------------------------------------------- 跳舞前回到竖直（用户11-13）
+    def test_start_pose_is_one_step_listing_all_six_targets(self):
+        steps = self.web_preview('music')['routine']['steps']
+        self.assertTrue(steps[0]['label'].startswith('到起始姿态'))
+        self.assertEqual(steps[0]['joints'], [[j, 90] for j in range(1, 7)])
+        self.assertFalse(any(s['label'].startswith('到起始姿态') for s in steps[1:]))
+
+    def test_already_upright_starts_first_beat_without_start_move(self):
+        simulate.SimFake.values[:] = [90] * 6
+        preview = self.web_preview('music')
+        self.web_start(preview);self.wait()
+        self.assertEqual(simulate.SimFake.calls[0], [tuple(x) for x in preview['routine']['steps'][1]['joints']])
+        self.assertEqual(len(simulate.SimFake.calls), len(preview['routine']['steps']) - 1)
+        log = [json.loads(x) for x in self.control.log.read_text().splitlines()]
+        self.assertTrue(any(e['kind'] == 'dance_start_pose' and e['start_move'] == 'already_there' for e in log))
+
+    def test_start_move_is_one_batch_when_model_check_passes(self):
+        simulate.SimFake.values[:] = [90, 100, 60, 60, 130, 90]
+        preview = self.web_preview('music')
+        self.web_start(preview);self.wait()
+        self.assertEqual(simulate.SimFake.calls[0], [(2, 90), (3, 90), (4, 90), (5, 90)])
+        self.assertEqual(simulate.SimFake.calls[1], [tuple(x) for x in preview['routine']['steps'][1]['joints']])
+
+    def test_start_move_refuses_without_motion_when_reading_incomplete_or_model_fails(self):
+        original = simulate.SimFake.read_report
+
+        def partial(fake):
+            rows = original(fake);rows[2] = dict(id=3, angle=None, read_ok=False, error='synthetic I2C error')
+            return rows
+        for patcher, text in ((patch.object(simulate.SimFake, 'read_report', partial), '读取失败'),
+                              (patch('modes.Modes.check_start_move', return_value='synthetic collision'), 'synthetic collision')):
+            simulate.SimFake.calls.clear()
+            simulate.SimFake.values[:] = [90, 100, 60, 60, 130, 90]
+            with patcher:
+                self.web_start(self.web_preview('music'));self.wait()
+            self.assertEqual(self.control.job['status'], 'failed')
+            self.assertIn('未运动', self.control.job['error']);self.assertIn(text, self.control.job['error'])
+            self.assertEqual(simulate.SimFake.calls, [])
+
+    def test_start_move_uses_exactly_300ms_and_other_motion_keeps_500ms_floor(self):
+        import arm
+        step = self.web_preview('music')['routine']['steps'][0]
+        self.assertEqual((step['motion_ms'], arm.START_MOVE_MS), (300, 300))
+        cfg = dict(motion_ms=300, settle_ms=300)
+        self.assertEqual(arm.timing(cfg, start_move=True), (300, 300))
+        with self.assertRaises(ValueError):
+            arm.timing(cfg)                                   # 其他指令仍不得低于500 ms
+        with self.assertRaises(ValueError):
+            arm.timing(dict(cfg, motion_ms=400), start_move=True)
+
+    def test_start_move_model_check_rejects_colliding_path(self):
+        self.assertIsNone(self.modes.check_start_move([90, 100, 60, 60, 130], [[2, 90], [3, 90], [4, 90], [5, 90]], 1000))
+        self.assertIsNotNone(self.modes.check_start_move([90, 45, 45, 45, 90], [[2, 10], [3, 10]], 1000))
 
     def test_web_button_requires_confirmation_and_current_plan(self):
         preview = self.web_preview('music', BASE_ID)
@@ -247,10 +311,10 @@ class ModesTests(unittest.TestCase):
         session = self.dance_session()
         original = simulate.SimFake.write
 
-        def failing(fake, pairs, hold_ms=None, retries=0):
+        def failing(fake, pairs, hold_ms=None, retries=0, start_move=False):
             if len(simulate.SimFake.calls) == 3:
                 raise RuntimeError('synthetic I2C error')
-            return original(fake, pairs, hold_ms, retries)
+            return original(fake, pairs, hold_ms, retries, start_move)
         with patch.object(simulate.SimFake, 'write', failing):
             self.modes.api_gesture(dict(session_id=session['id'], routine='music', request_id='d' * 32))
             self.wait()

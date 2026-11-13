@@ -26,7 +26,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:12px}#notice{color:#ffd
 <button id="blockPreview">预览本次会话参数（不运动）</button></section>
 
 <section class="panel" id="dancePanel" hidden><h2>表情手势跳舞</h2>
-<p class="muted">开启后，电脑端识别到约定的表情/手势时，开发板执行下面列出的一套跳舞动作（先按姿态按钮顺序到起始姿态，再摆动）。</p>
+<p class="muted">开启后，电脑端识别到约定的表情/手势时，开发板执行下面列出的一套跳舞动作（先在300 ms内同时回到起始姿态，已到位就跳过，再摆动）。</p>
 <div class="row"><label>起始姿态（首页保存的姿态按钮）<select id="baseState"></select></label>
 <label>最多跳舞次数<input id="danceMax" type="number" min="1" max="30" value="10"></label>
 <label>两次之间最短间隔（秒）<input id="cooldown" type="number" min="0" max="60" value="3"></label></div>

@@ -140,10 +140,11 @@ def build_routine(arms, base_state, name, spec):
         if base != start:
             raise ValueError(f'需要起始姿态 {start}（例如“竖直”姿态按钮），当前选择的是 {base}')
     steps = []
-    # 第 1 步：按姿态按钮自己的顺序逐关节到起始姿态（与“姿态按钮”执行方式一致）。
-    for joint in base_state['order']:
-        steps.append(dict(label=f'到起始姿态：{joint}号', joints=[[joint, arm.angle(arms, joint, base[joint - 1])]],
-                          motion_ms=base_state['motion_ms'], settle_ms=settle))
+    # 第 1 步（用户2026-11-13要求）：先回到起始姿态（竖直）。执行时先读六关节，已在目标±1°内的关节跳过；
+    # 其余关节全部同批在 300 ms 内到位，须六关节可读且从读数出发的同步路径通过模型碰撞检查，否则不运动、报错停止。
+    steps.append(dict(label=f'到起始姿态：{base_state["name"]}',
+                      joints=[[j, arm.angle(arms, j, base[j - 1])] for j in range(1, 7)],
+                      motion_ms=arm.START_MOVE_MS, settle_ms=settle))
     if keyframes:
         for index, (joints, ms) in enumerate(keyframe_steps(name, spec.get('keyframes'), repeats, step_ms), 1):
             joints = [[j, arm.angle(arms, j, v)] for j, v in joints]

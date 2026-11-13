@@ -37,7 +37,7 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px;bord
 <pre id="stateAnalysis"></pre></details>
 <p id="stateNotice" role="status"></p></section>
 <section class="panel" id="dancePanel" style="margin-top:20px"><h2>跳舞预设</h2>
-<p class="muted">先选起始姿态（姿态按钮）。每张卡片列出本次全部关节目标与每拍用时；点击“开始跳舞”即确认执行这一套。先按姿态按钮顺序逐关节到起始姿态，再按拍同批下发，运动中不回读。“停止后续”只停止还没发出的拍子，已发出的指令无法撤回，不是急停。</p>
+<p class="muted">先选起始姿态（姿态按钮）。每张卡片列出本次全部关节目标与每拍用时；点击“开始跳舞”即确认执行这一套。先回到起始姿态（已到位就跳过、马上开跳；需要移动时所有关节同时在300 ms内到位，读数不全或模型检查不通过则不运动），再按拍同批下发，运动中不回读。“停止后续”只停止还没发出的拍子，已发出的指令无法撤回，不是急停。</p>
 <label>起始姿态<select id="danceState"></select></label>
 <div class="cards" id="danceCards"></div>
 <button id="danceStop" hidden>停止后续拍子</button>

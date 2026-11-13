@@ -202,6 +202,7 @@ def main():
                 pc_planner=pc)
     server = ThreadingHTTPServer((args.host, args.port), demo_handler(demo))
     threading.Thread(target=camera.capture, daemon=True).start()
+    threading.Thread(target=demo.modes.warm_dance_checks, daemon=True).start()   # 预先缓存跳舞碰撞检查，不运动
     demo.control.audit(dict(operation='startup', arguments=vars(args)))
     print(f"机械臂服务 http://{args.host}:{args.port}；控制模式={'实机' if args.enable_real_control else '模拟'}；启动不运动", flush=True)
     try:

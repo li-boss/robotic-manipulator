@@ -37,10 +37,10 @@ class SimFake:
     def read_report(self):
         return [dict(id=i, angle=v, read_ok=True, error=None) for i, v in enumerate(self.values, 1)]
 
-    def write(self, pairs, hold_ms=None, retries=0):
+    def write(self, pairs, hold_ms=None, retries=0, start_move=False):
         import arm
         pairs = [(i, arm.angle(self.config, i, v)) for i, v in pairs]
-        duration, settle = arm.timing(self.config)
+        duration, settle = arm.timing(self.config, start_move=start_move)
         self.last_retries = []
         type(self).calls.append(pairs)
         time.sleep(min(duration + settle if hold_ms is None else hold_ms, self.max_delay_ms) / 1000)   # 加速但保留节奏

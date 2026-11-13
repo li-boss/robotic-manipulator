@@ -2,11 +2,13 @@
    回车/“确定”即授权该次单关节调整；姿态卡片的执行按钮即授权该次六步调整；
    跳舞卡片的“开始跳舞”即授权卡片列出的这一套动作。异常不重发。 */
 const el=id=>document.getElementById(id);
-async function api(path,body){const r=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(8000),...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const data=await r.json();if(!r.ok)throw Error(data.error||'服务错误');return data;}
+async function api(path,body,ms=8000){const r=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(ms),...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const data=await r.json();if(!r.ok)throw Error(data.error||'服务错误');return data;}
 function requestId(){return Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');}
 function cell(row,text){const td=document.createElement('td');td.textContent=text??'—';row.append(td);return td;}
 let controlState=null,pending=false,recovering=false,stateRevision=null,stateAnalysis=null,stateEditing=null,stateEditingStage='',stateRendered=null;
-async function post(path,body={}){if(!controlState)throw Error('控制服务尚未连接');return api(path,{...body,csrf:controlState.csrf});}
+async function post(path,body={},ms){if(!controlState)throw Error('控制服务尚未连接');return api(path,{...body,csrf:controlState.csrf},ms);}
+// 跳舞预览/开始可能要等整套模型碰撞检查（开发板首次约20～30秒，之后有缓存），单独放宽等待。
+const DANCE_MS=120000;
 function locked(){return pending||recovering||!controlState||controlState.busy;}
 
 // ---- 摄像头
@@ -64,18 +66,18 @@ async function loadDances(){dancePreviews={};el('danceCards').replaceChildren();
  if(!id){el('danceCards').textContent='先在上面保存一个姿态按钮作为跳舞起始姿态。';return;}
  try{dancePresets=dancePresets||await post('/modes/dance/presets');}catch(e){el('danceNotice').textContent='读取跳舞预设失败：'+e.message;return;}
  for(const [name,spec] of Object.entries(dancePresets.routines)){const card=document.createElement('div');card.className='panel';const title=document.createElement('strong');title.textContent=spec.label||name;
-  const info=document.createElement('p');info.className='muted';info.textContent='正在生成计划并做模型碰撞检查（不运动）……';const steps=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent='全部关节目标与用时';steps.append(summary,pre);
+  const info=document.createElement('p');info.className='muted';info.textContent='正在生成计划并做模型碰撞检查（不运动；开发板刚启动时首次约20～30秒）……';const steps=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent='全部关节目标与用时';steps.append(summary,pre);
   const run=document.createElement('button');run.dataset.routine=name;run.disabled=true;run.textContent=(controlState?.mode==='real'?'实机':'模拟')+'：开始跳舞“'+(spec.label||name)+'”';run.onclick=()=>startDance(name);
   card.append(title,info,steps,run);el('danceCards').append(card);
-  post('/modes/dance/preview',{routine:name,state_id:id}).then(r=>{if(el('danceState').value!==id)return;const c=r.collision,rt=r.routine;const ok=!c.checked||c.ok;
+  post('/modes/dance/preview',{routine:name,state_id:id},DANCE_MS).then(r=>{if(el('danceState').value!==id)return;const c=r.collision,rt=r.routine;const ok=!c.checked||c.ok;
     dancePreviews[name]={ready:ok,routine:rt,states_sha256:r.states_sha256,state_id:id};
     info.textContent=PATTERN_TEXT(rt)+' · 共'+rt.steps.length+'步，约'+(rt.duration_ms/1000).toFixed(1)+'秒 · '+(c.checked?(c.ok?'✓ '+c.note:'✗ '+c.error):c.note);
-    pre.textContent=rt.steps.map((s,i)=>(i+1)+'. '+s.label+'：'+s.joints.map(([j,v])=>j+'号→'+v+'°').join('，')+' / '+s.motion_ms+'ms+'+s.settle_ms+'ms').join('\n');disable();})
+    pre.textContent=rt.steps.map((s,i)=>(i+1)+'. '+s.label+'：'+s.joints.map(([j,v])=>j+'号→'+v+'°').join('，')+' / '+s.motion_ms+'ms+'+s.settle_ms+'ms'+(s.label.startsWith('到起始姿态')?'（执行时已到位的关节跳过，全部到位则直接开始）':'')).join('\n');disable();})
    .catch(e=>{if(el('danceState').value===id){info.textContent='不能执行：'+e.message;dancePreviews[name]={ready:false};disable();}});}}
 function PATTERN_TEXT(rt){return (rt.pattern==='keyframes'?'逐拍绝对目标'+(rt.source?'（'+rt.source+'）':'')+(rt.adjusted?'；已按本机范围调整：'+rt.adjusted:''):(dancePresets.patterns[rt.pattern]||rt.pattern)+'，幅度'+rt.amplitude_deg+'°')+'，重复'+rt.repeats+'次，起点“'+rt.base_state.name+'”';}
 el('danceState').onchange=()=>loadDances();
 function startDance(name){const p=dancePreviews[name];if(!p?.ready)return;el('danceNotice').textContent='正在跳“'+p.routine.label+'”，请看现场。';
- return guarded(async()=>{const r=await post('/modes/dance/start',{routine:name,state_id:p.state_id,routine_sha256:p.routine.sha256,states_sha256:p.states_sha256,request_id:requestId(),confirmed:true});el('danceNotice').textContent='已开始：共'+r.job.total+'步，约'+(r.duration_ms/1000).toFixed(1)+'秒。';},'danceNotice');}
+ return guarded(async()=>{const r=await post('/modes/dance/start',{routine:name,state_id:p.state_id,routine_sha256:p.routine.sha256,states_sha256:p.states_sha256,request_id:requestId(),confirmed:true},DANCE_MS);el('danceNotice').textContent='已开始：共'+r.job.total+'步，约'+(r.duration_ms/1000).toFixed(1)+'秒。';},'danceNotice');}
 el('danceStop').onclick=async()=>{try{const r=await post('/modes/dance/stop');el('danceNotice').textContent=r.message;}catch(e){el('danceNotice').textContent='停止请求失败：'+e.message;}};
 
 // ---- 轮询
