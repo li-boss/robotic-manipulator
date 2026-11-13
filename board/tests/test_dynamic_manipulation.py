@@ -206,12 +206,14 @@ class DynamicTaskTests(cad_tests.CadTaskTests):
         self.assertEqual(self.c.job['status'],'failed');self.assertEqual(StatefulFake.calls,[])
 
 
-    def test_post_write_read_failure_has_no_followup_motion(self):
+    def test_final_read_failure_marks_task_failed_without_extra_motion(self):
+        # 用户11-13：最后一步之前连续下发不回读；执行后第一次（即最后一步后）整体读取失败则任务失败，不追加任何运动。
         target,_=self.fresh_target();p=self.task.preview({'target':target})
         StatefulFake.fail_read=StatefulFake.reads+2
         self.c.execute({'token':p['token'],'confirmed':True});self.wait_done()
-        first=[tuple(pair) for pair in p['parameters']['plan']['steps'][0]['joints']]
-        self.assertEqual(self.c.job['status'],'failed');self.assertEqual(StatefulFake.calls,[first])
+        steps=p['parameters']['plan']['steps']
+        self.assertEqual(self.c.job['status'],'failed')
+        self.assertEqual(StatefulFake.calls,[[tuple(pair) for pair in s['joints']] for s in steps])
 
     def test_partial_read_failures_warn_and_continue_whole_plan(self):
         target,_=self.fresh_target()
@@ -225,8 +227,9 @@ class DynamicTaskTests(cad_tests.CadTaskTests):
         steps=p['parameters']['plan']['steps']
         self.assertEqual(self.c.job['status'],'completed',self.c.job)
         self.assertEqual(len(StatefulFake.calls),len(steps))
-        stopped=[x for x in steps if not x.get('blend_next_ms')]
-        self.assertEqual(self.c.job['verified_steps'],len(stopped)-1)
+        # 只有最后一步停稳回读；该次读取有关节失败，因此没有计为验证的步骤。
+        self.assertEqual([x for x in steps if not x.get('blend_next_ms') and not x.get('continuous')],[steps[-1]])
+        self.assertEqual(self.c.job['verified_steps'],0)
         self.assertIn('读数/写入警告',self.c.job['message'])
         log=[json.loads(x) for x in self.c.log.read_text().splitlines()]
         self.assertTrue(any(e['kind']=='read_warning' for e in log))
@@ -272,8 +275,9 @@ class DynamicTaskTests(cad_tests.CadTaskTests):
         target,_=self.fresh_target();p=self.task.preview({'target':target})
         StatefulFake.shortfall={2:4}
         self.c.execute({'token':p['token'],'confirmed':True});self.wait_done()
+        # 中间步骤不回读，偏差在最后一步停稳回读时发现，任务记为失败。
         self.assertEqual(self.c.job['status'],'failed');self.assertIn('超过3度',self.c.job['error'])
-        self.assertLess(len(StatefulFake.calls),len(p['parameters']['plan']['steps']))
+        self.assertEqual(len(StatefulFake.calls),len(p['parameters']['plan']['steps']))
 
     def test_recovered_write_retry_is_logged_and_plan_continues(self):
         target,_=self.fresh_target();p=self.task.preview({'target':target})
@@ -298,10 +302,21 @@ class DynamicTaskTests(cad_tests.CadTaskTests):
         steps=p['parameters']['plan']['steps'];reads=StatefulFake.reads
         self.c.execute({'token':p['token'],'confirmed':True});self.wait_done()
         self.assertEqual(self.c.job['status'],'completed',self.c.job)
-        expected=[s['motion_ms']-s['blend_next_ms'] if s.get('blend_next_ms') else None for s in steps]
+        expected=[s['motion_ms']-s['blend_next_ms'] if s.get('blend_next_ms') else s['motion_ms'] if s.get('continuous') else None for s in steps]
         self.assertEqual(StatefulFake.holds,expected)
-        # 执行前1次 + 每个停稳步骤1次。
-        self.assertEqual(StatefulFake.reads-reads,1+sum(1 for s in steps if not s.get('blend_next_ms')))
+        # 用户11-13：除最后一步外全部衔接或连续下发；执行前1次 + 最后一步1次。
+        self.assertTrue(all(s.get('blend_next_ms') or s.get('continuous') for s in steps[:-1]))
+        self.assertFalse(steps[-1].get('blend_next_ms') or steps[-1].get('continuous'))
+        self.assertEqual(StatefulFake.reads-reads,2)
+        grips=[s for s in steps if s['label'] in ('夹持方块','释放方块')]
+        self.assertTrue(grips and all(s['motion_ms']==800 for s in grips))
+        self.assertEqual(p['parameters']['plan']['duration_ms'],sum(e if e is not None else s['motion_ms']+s['settle_ms'] for e,s in zip(expected,steps)))
+
+    def test_continuous_flag_on_last_step_rejected_before_any_write(self):
+        target,_=self.fresh_target();p=self.task.preview({'target':target})
+        self.c.pending['parameters']['plan']['steps'][-1]['continuous']=True
+        with self.assertRaises(ValueError):self.c.execute({'token':p['token'],'confirmed':True})
+        self.assertEqual(StatefulFake.calls,[])
 
     def test_projection_plane_only_changes_image_conversion(self):
         from manipulation_geometry import project_to_plane

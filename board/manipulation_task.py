@@ -565,7 +565,9 @@ class Manipulation:
             arm.timing(dict(controller.config,motion_ms=s['motion_ms'],settle_ms=s['settle_ms']))
             lead=s.get('blend_next_ms')
             if lead is not None and (type(lead) is not int or not 0<lead<s['motion_ms']):raise ValueError('衔接提前量无效')
-        if not args.get('step_only') and steps and steps[-1].get('blend_next_ms') is not None:raise ValueError('最后一步不能衔接')
+            if s.get('continuous') not in (None,True) or (s.get('continuous') and lead is not None):raise ValueError('连续下发标记无效')
+        if not args.get('step_only') and steps and (steps[-1].get('blend_next_ms') is not None or steps[-1].get('continuous')):
+            raise ValueError('最后一步不能衔接或连续下发，须停稳回读')
         tolerate=self.continue_read_failures(args)
         if tolerate:
             # 起点以冻结读数为准；成功读取的关节已在执行前核对不超过1°。
@@ -584,11 +586,15 @@ class Manipulation:
                 controller.config=dict(controller.config,motion_ms=s['motion_ms'],settle_ms=s['settle_ms'])
                 previous_gripper=expected[5]
                 blend=tolerate and s.get('blend_next_ms') is not None
+                # 用户11-13要求：随臂计划最后一步之前不停稳、不回读，用时结束即下发下一步。
+                flow=tolerate and bool(s.get('continuous')) and index<len(steps)-1
                 # 用户10-30：单关节写入失败重发同一绝对目标最多2次，逐次记录。
                 try:
                     if blend:
                         # 上一段结束前下发下一段，不停稳、不回读；切角路径已在规划时检查。
                         controller.write([tuple(pair) for pair in s['joints']],hold_ms=s['motion_ms']-s['blend_next_ms'],retries=arm.MAX_WRITE_RETRIES)
+                    elif flow:
+                        controller.write([tuple(pair) for pair in s['joints']],hold_ms=s['motion_ms'],retries=arm.MAX_WRITE_RETRIES)
                     else:controller.write([tuple(pair) for pair in s['joints']],retries=arm.MAX_WRITE_RETRIES)
                 finally:
                     for retry in getattr(controller,'last_retries',[]):
@@ -596,12 +602,13 @@ class Manipulation:
                         warnings.append(dict(step=index,kind='write_retry',**retry))
                 sent+=1
                 for i,v in s['joints']:expected[i-1]=v;self.control.commanded[str(i)]=v
-                if blend:
-                    receipts.append(dict(step=index,expected=expected.copy(),readings=None,real=controller.real,verified=False,blended=True,warnings=[]))
-                    with self.control.lock:self.control.job.update(sent=sent,verified_steps=sum(r['verified'] for r in receipts),total=len(steps),read_warnings=len(warnings))
-                    continue
                 if s['label']=='夹持方块':holding=sorted((previous_gripper,expected[5]))
                 elif s['label']=='释放方块':holding=None
+                if blend or flow:
+                    receipts.append(dict(step=index,expected=expected.copy(),readings=None,real=controller.real,verified=False,
+                                         **(dict(blended=True) if blend else dict(continuous=True)),warnings=[]))
+                    with self.control.lock:self.control.job.update(sent=sent,verified_steps=sum(r['verified'] for r in receipts),total=len(steps),read_warnings=len(warnings))
+                    continue
                 rows=self.control.read_rows(controller.config,allow_failed=tolerate)
                 step_warnings=[]
                 for r,v in zip(rows,expected):
@@ -625,7 +632,8 @@ class Manipulation:
             task.update(status='completed',ended_at=arm.now(),instructions_sent=sent,verified_steps=verified_steps,receipts=receipts,read_warnings=warnings)
             self.demo.store.append(task)
             blended=sum(1 for r in receipts if r.get('blended'))
-            note=('；读数/写入警告'+str(len(warnings))+'条（读取失败或偏差的步骤未计为验证，写入重发已记录）' if warnings else '')+('；衔接段'+str(blended)+'处未停稳回读' if blended else '')
+            flowed=sum(1 for r in receipts if r.get('continuous'))
+            note=('；读数/写入警告'+str(len(warnings))+'条（读取失败或偏差的步骤未计为验证，写入重发已记录）' if warnings else '')+('；衔接段'+str(blended)+'处未停稳回读' if blended else '')+('；连续下发'+str(flowed)+'步未停稳回读' if flowed else '')
             return dict(status='completed',task_id=p['token'],sent=sent,verified_steps=verified_steps,read_warnings=warnings,note=note,
                 message=('本步空载下发与回读完成；仍需现场观察' if args.get('step_only') else
                 ('夹取抬升计划下发与回读完成；保持夹持，结果待人工确认' if args['plan']['target'].get('task_mode')=='pickup' else '完整计划下发与回读完成，夹取及放置结果待人工确认'))+note)

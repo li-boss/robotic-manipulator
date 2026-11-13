@@ -4,7 +4,7 @@
   sway   左右摇摆：1 号底座在起始角 ±幅度 间来回
   nod    点头：4 号腕关节在起始角 ±幅度 间来回
   circle 画圈：1 号与 4 号按圆周 8 个点组合运动（末端画一个小圈）
-  keyframes 关键帧：模板里逐拍写明绝对目标角（课程《任务7：机械臂跳舞》的那支舞即用这种方式）。
+  keyframes 关键帧：模板里逐拍写明绝对目标角（课程舞蹈 course 与音乐舞蹈 music 即用这种方式）。
          要求起始姿态按钮的六个角度与模板的 start_angles 完全相同；超出本机配置范围的值
          必须在模板里人工写成合法值并注明，代码不会自动截断。
 
@@ -38,8 +38,30 @@ COURSE_KEYFRAMES = [
     {'6': 90, '1': 90, '5': 90},
     {'3': 90, '4': 90},
 ]
+# Zeta Education 教程 “Dancing With Music!”（同为 Arm_Lib 接口的 DOFBOT 类机械臂），逐拍照录：
+# https://zeta-edu-hgu.readthedocs.io/en/latest/_sources/courses/course_4/12.team_diy/2.sound/2.sound.rst.txt
+# 原教程先 write6(0,90,0,180,90,90) 2000 ms，再 7 拍 1600 ms 慢摆、16 拍 600 ms 快甩、收尾 1500/500 ms，共 26 拍。
+# 原舞有62个值超出本机配置范围，按用户2026-11-13选择在此明确写成：1～4、6号 0→10、180→170；
+# 5号 0→90（本机下限）、180→170。其余为原值。教程页未写许可证，原曲未附带。代码不做任何自动换算。
+_UP = {'1': 90, '2': 90, '3': 90, '4': 90, '5': 90, '6': 90}
+_BACK = {'1': 90, '2': 90, '3': 10, '4': 170, '5': 90, '6': 90}
+_LEFT = {'1': 10, '2': 90, '3': 10, '4': 170, '5': 90, '6': 170}
+_RIGHT = {'1': 170, '2': 90, '3': 10, '4': 170, '5': 170, '6': 170}
+MUSIC_KEYFRAMES = [
+    dict(_BACK, **{'1': 10, '6': 90, 'motion_ms': 2000}),
+    dict(_UP, motion_ms=1600), dict(_BACK, **{'1': 170, 'motion_ms': 1600}), dict(_UP, motion_ms=1600),
+    dict(_BACK, **{'1': 10, 'motion_ms': 1600}), dict(_UP, motion_ms=1600), dict(_BACK, **{'1': 170, 'motion_ms': 1600}),
+    dict(_UP, motion_ms=1600),
+    dict(_BACK, **{'4': 90}), dict(_BACK), dict(_LEFT), dict(_BACK), dict(_RIGHT), dict(_BACK),
+    dict(_UP), dict(_BACK), dict(_LEFT), dict(_BACK), dict(_RIGHT), dict(_BACK),
+    dict(_RIGHT), dict(_BACK), dict(_LEFT), dict(_BACK),
+    dict(_BACK, **{'4': 90, 'motion_ms': 1500}), dict(_BACK, **{'4': 90, '6': 170, 'motion_ms': 500}),
+]
 DEFAULT_DANCES = dict(version=1, routines={
-    'circle': dict(label='画圈', pattern='circle', amplitude_deg=15, repeats=1, motion_ms=600),
+    'music': dict(label='音乐舞蹈', pattern='keyframes', start_angles=[90, 90, 90, 90, 90, 90], repeats=1,
+                  motion_ms=600, keyframes=MUSIC_KEYFRAMES,
+                  source='Zeta Education 教程 Dancing With Music!（DOFBOT 类机械臂）',
+                  adjusted='62处超出本机配置范围的值已改为：1～4、6号 0→10、180→170；5号 0→90、180→170'),
     'course': dict(label='课程舞蹈', pattern='keyframes', start_angles=[90, 90, 90, 90, 90, 90], repeats=1,
                    motion_ms=500, keyframes=COURSE_KEYFRAMES,
                    source='课程资料 02_第二阶段 任务7：机械臂跳舞',

@@ -223,7 +223,7 @@ def run_jobs(robot, jobs, processes=None):
 
 def verify_remote(cfg, arms, target, require_path, reference, steps, processes=None):
     """返回开发板重新组装并检查过的计划；电脑端计划与之不一致时抛错。"""
-    from manipulation_geometry import _build_plan, locate, readiness
+    from manipulation_geometry import _build_plan, locate, mark_continuous, readiness
     if reference is None:
         raise ValueError('电脑端计划只用于九点引导模式')
     ready = readiness(cfg, arms, require_path)
@@ -248,7 +248,6 @@ def verify_remote(cfg, arms, target, require_path, reference, steps, processes=N
     for k, step in enumerate(blended):
         if k in rejected:
             del step['blend_next_ms']
-    plan['duration_ms'] = sum(s['motion_ms'] - s['blend_next_ms'] if s.get('blend_next_ms') else s['motion_ms'] + s['settle_ms']
-                              for s in plan['steps'])
+    mark_continuous(plan)   # 衔接被拒的位置改为连续下发（随臂计划）或停稳回读，并重算用时
     plan['reference'] = search.summary()
     return plan
