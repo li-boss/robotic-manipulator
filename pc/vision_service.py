@@ -21,6 +21,8 @@ from pathlib import Path
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 
 import cv2
@@ -59,9 +61,19 @@ PAGE = """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
   <div class="v" id="health">—</div>
 </div>
 <div class="card">
-  <button id="freeze">① 冻结并识别（不运动）</button>
-  <button id="grasp" disabled>② 开始抓取（会运动）</button>
-  <button id="reload">刷新状态</button>
+  <label class="k" for="label">目标颜色</label>
+  <select id="label" style="font-size:15px;padding:8px;border-radius:6px;background:#101923;color:#eaf1f8;border:1px solid #49607a;margin:0 0 8px 8px">
+    <option value="auto" selected>自动（推荐：四个颜色里取分数最高）</option>
+    <option value="block_yellow">黄 block_yellow</option>
+    <option value="block_blue">蓝 block_blue</option>
+    <option value="block_red">红 block_red</option>
+    <option value="block_green">绿 block_green</option>
+  </select>
+  <div>
+    <button id="freeze">① 冻结并识别（不运动）</button>
+    <button id="grasp" disabled>② 开始抓取（会运动）</button>
+    <button id="reload">刷新状态</button>
+  </div>
 </div>
 <div class="card"><div id="msg">—</div><div id="shot"></div></div>
 <script>
@@ -82,16 +94,33 @@ async function status(){
 document.getElementById('reload').onclick=()=>{status()};
 document.getElementById('freeze').onclick=async()=>{
   setMsg('冻结中…');document.getElementById('shot').innerHTML='';
-  const r=await j('/api/freeze',{method:'POST'});
+  const label=document.getElementById('label').value;
+  const r=await j('/api/freeze?label='+encodeURIComponent(label),{method:'POST'});
   if(r.error){setMsg('冻结失败：'+r.error);frozen=false;return}
-  frozen=true;
-  setMsg(`frame_id=${r.frame_id}\\n关节：${r.joints}\\n候选 ${r.candidates} 个\\n所选：${r.chosen?JSON.stringify(r.chosen):'无'}\\n提交载荷：${JSON.stringify(r.payload)}`);
+  if(!r.chosen){
+    frozen=false;
+    setMsg(`frame_id=${r.frame_id}\n关节：${r.joints}\n检出：${(r.labels||[]).join('、')||'无'}\n这一帧没有可用候选，② 已禁用`);
+  }else{
+    frozen=true;
+    setMsg(`frame_id=${r.frame_id}\n关节：${r.joints}\n检出：${(r.labels||[]).join('、')}\n所选：${JSON.stringify(r.chosen)}\n提交载荷：${JSON.stringify(r.payload)}`);
+  }
   if(r.overlay)document.getElementById('shot').innerHTML='<img src="data:image/png;base64,'+r.overlay+'">';
   status();
 };
+let armedClick=0;
 document.getElementById('grasp').onclick=async()=>{
-  if(!confirm('确认现在开始抓取？这一步会让机械臂运动。'))return;
-  setMsg('提交中…');document.getElementById('grasp').disabled=true;
+  const btn=document.getElementById('grasp');
+  const now=Date.now();
+  if(now-armedClick>6000){
+    armedClick=now;
+    btn.textContent='② 再点一次确认（6 秒内）';
+    setMsg('这一步会让机械臂运动。请在 6 秒内再点一次同一按钮确认；超时自动取消。');
+    setTimeout(()=>{ if(Date.now()-armedClick>=6000){ armedClick=0; btn.textContent='② 开始抓取（会运动）'; } },6100);
+    return;
+  }
+  armedClick=0;
+  btn.textContent='② 开始抓取（会运动）';
+  setMsg('提交中…');btn.disabled=true;
   const r=await j('/api/grasp',{method:'POST'});
   frozen=false;
   setMsg(r.error?('被拒绝：'+r.error):('已受理：'+JSON.stringify(r.response,null,1)));
@@ -136,18 +165,27 @@ def do_freeze(label):
     detector = STATE['detector']
     result = detector.analyze(image)
     candidates = detector.candidates(result)
-    mine = sorted((d for d in candidates if d.label == label), key=lambda d: d.score, reverse=True)
+    if label == 'auto':
+        mine = sorted(candidates, key=lambda d: d.score, reverse=True)
+    else:
+        mine = sorted((d for d in candidates if d.label == label), key=lambda d: d.score, reverse=True)
     chosen = mine[0] if mine else None
+    detected = [f"{d.label}:{d.score:.3f}" for d in sorted(candidates, key=lambda d: d.score, reverse=True)]
+    if chosen is None:
+        # 宁可报错，也不留空载荷：前端据此保持"② 开始抓取"不可点。
+        detail = '、'.join(detected) if detected else '画面里没有任何积木候选'
+        raise BoardError(f'这一帧没有可用候选（检出：{detail}）；'
+                         f'请让整块方块都在画面内、顶面完整可见、不要贴画面边缘')
     ok, encoded = cv2.imencode('.png', overlay(image, result))
     with STATE['lock']:
         STATE['freeze'] = dict(session=session, frame_id=frame_id,
-                               payload=None if chosen is None else chosen.to_dict(),
-                               at=time.time(), label=label)
+                               payload=chosen.to_dict(), at=time.time(), label=chosen.label)
     return dict(frame_id=frame_id, joints=[f"ID{j['id']}={j['angle']}" for j in frozen.get('joints') or []],
                 candidates=len(candidates),
-                chosen=None if chosen is None else dict(label=chosen.label, score=round(chosen.score, 6),
-                                                        center=[round(v, 3) for v in chosen.center]),
-                payload=None if chosen is None else chosen.to_dict(),
+                labels=detected,
+                chosen=dict(label=chosen.label, score=round(chosen.score, 6),
+                            center=[round(v, 3) for v in chosen.center]),
+                payload=chosen.to_dict(),
                 overlay=base64.b64encode(encoded.tobytes()).decode() if ok else None,
                 min_score=mode.get('min_score'))
 
@@ -233,9 +271,18 @@ class Handler(BaseHTTPRequestHandler):
             self._send(403, dict(error='来源不在允许列表：' + str(self.headers.get('Origin'))))
             return
         try:
-            if self.path == '/api/freeze':
-                self._send(200, do_freeze(STATE['args'].label))
-            elif self.path == '/api/grasp':
+            path, _, query = self.path.partition('?')
+            if path == '/api/freeze':
+                wanted = STATE['args'].label
+                for part in query.split('&'):
+                    key, _, value = part.partition('=')
+                    if key == 'label' and value:
+                        wanted = urllib.parse.unquote(value)
+                if wanted not in ('auto', 'block_blue', 'block_green', 'block_red', 'block_yellow'):
+                    self._send(200, dict(error=f'不支持的目标颜色：{wanted}'))
+                    return
+                self._send(200, do_freeze(wanted))
+            elif path == '/api/grasp':
                 self._send(200, do_grasp())
             else:
                 self._send(404, dict(error='无此接口'))
@@ -255,7 +302,9 @@ def main():
     parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--port', type=int, default=8099)
     parser.add_argument('--board', default='http://192.168.137.100:8080')
-    parser.add_argument('--label', default='block_yellow')
+    parser.add_argument('--label', default='auto',
+                        choices=['auto', 'block_blue', 'block_green', 'block_red', 'block_yellow'],
+                        help='auto=自动在四个颜色里取分数最高；也可固定某一种颜色')
     parser.add_argument('--max-age', type=int, default=90)
     parser.add_argument('--out', default=str(Path(__file__).resolve().parent /
                                              'block_vision/weights/grasp_service'))
@@ -264,8 +313,21 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     STATE['args'] = args
     STATE['detector'] = YoloBlockDetector()
+
+    class SingleInstanceServer(ThreadingHTTPServer):
+        # 关键：Windows 下 SO_REUSEADDR 允许两个进程绑同一端口，会导致
+        # "冻结请求进 A 进程、抓取请求进 B 进程"，表现为按钮点了没反应。
+        # 关掉复用，第二个实例会直接启动失败。
+        allow_reuse_address = False
+
     print(f'模型已加载；服务 http://{args.host}:{args.port}/ ；板端 {args.board}', flush=True)
-    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
+    try:
+        server = SingleInstanceServer((args.host, args.port), Handler)
+    except OSError as exc:
+        raise SystemExit(f'端口 {args.port} 已被占用（可能已有一个控制台在跑）：{exc}；'
+                         f'请先关掉旧实例，不要同时启动多个') from None
+    print(f'已监听 {args.host}:{args.port}（单实例模式）', flush=True)
+    server.serve_forever()
 
 
 if __name__ == '__main__':
