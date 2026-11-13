@@ -19,9 +19,16 @@ board/data/teaching_cards.json
 # 队友模型权重（放网盘，不入库）
 pc/block_vision/weights/
 pc/gesture/weights/
+pc/voice_control/speech_recognition/models/
 
 # 课程原始资料（体积大、版权归课程方，只在本地参考）
 机械臂课程资料/
 
 # 本机工具配置
 .claude/
+
+# A 模块：测试与迁移验证材料只保留本地，不入库
+pc/tests/test_block_*.py
+pc/block_vision/check_simulator.py
+pc/block_vision/validate_migration.py
+pc/block_vision/migration_report_*.json

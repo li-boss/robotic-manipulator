@@ -8,16 +8,16 @@
 | 人工框选方块 → 抓取/抓放 | 网页 `/manipulation` | 在用（随臂冻结定位、逆解、碰撞检查） |
 | 相机内参 / 手眼标定 | 网页 `/calibration` | 在用 |
 | 方块识别自动抓取 | 网页 `/modes` 开启 + `pc/run_block_grasp.py` | 接口完成，示例颜色检测器；等待方块识别模型 |
-| 表情手势跳舞 | 网页 `/modes` 开启 + `pc/run_gesture_dance.py` | 接口完成，键盘模拟；等待手势模型 |
+| 表情手势跳舞 | 网页 `/modes` 开启 + `pc/run_gesture_dance.py` | 电脑端手势/微笑模型接入；默认读取开发板摄像头 |
 | 跳舞预设按钮（音乐舞蹈 / 课程舞蹈） | 网页首页“跳舞预设” | 在用 |
 | 电脑端规划提速 | `pc/plan_server.py`（开发板自动使用并复核，没开则本地计算） | 完成；Windows 待实测 |
-| 语音 | — | 预留，见接口指南第 6 节 |
+| 语音控制 | `pc/voice_control/`、`pc/run_voice_dance.py` | WAV/按键录音识别固定口令，触发已授权的画圈或课程舞蹈，见接口指南第 6 节 |
 
 ## 目录
 
 ```
 board/     开发板端：网页服务、控制层（arm.py）、抓放规划、模式会话、网页、模型、配置模板、测试、simulate.py
-pc/        电脑端：armlink 通信库、block_vision / gesture 插件接口、运行脚本、规划服务 plan_server.py、测试
+pc/        电脑端：armlink 通信库、block_vision / gesture / voice_control 模块、运行脚本、规划服务 plan_server.py、测试
 docs/      文档（接口与合并指南、部署、算法说明、标定说明、标定板 PDF）
 tools/     run_tests.sh、Mac 启动器、设备数据迁移
 机械臂课程资料/   课程原始资料（只读参考，体积大，不入 git）
@@ -30,6 +30,7 @@ tools/     run_tests.sh、Mac 启动器、设备数据迁移
 
 - 队友：[docs/接口与合并指南.md](docs/接口与合并指南.md) —— 怎么写检测器/识别器、怎么联调、怎么合并。
 - 机械臂控制：[docs/开发板部署与启动.md](docs/开发板部署与启动.md)、[docs/抓放系统实现与算法说明.md](docs/抓放系统实现与算法说明.md)、[docs/相机标定使用说明.md](docs/相机标定使用说明.md)。
+- 模型安装与启动（两套环境、权重获取、启动命令、故障处置）：[docs/模型安装与启动.md](docs/模型安装与启动.md)。
 - 所有人：[AGENTS.md](AGENTS.md) 与 [机械臂操作准则.md](机械臂操作准则.md) —— 运动授权与安全规则，代码里强制执行。
 
 ## 快速开始（无硬件）

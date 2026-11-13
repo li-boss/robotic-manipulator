@@ -1,0 +1,4 @@
+# Reuse the model-hash checkout fix already present in the D integration branch.
+board/models/**/*.urdf text eol=lf
+# The migrated HSV provenance hash also binds to exact file bytes.
+pc/block_vision/a_top_face_hsv.json text eol=lf
