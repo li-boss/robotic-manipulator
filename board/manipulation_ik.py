@@ -4,6 +4,23 @@ import math
 import numpy as np
 
 
+def wrist_seed(relative, plane_angle):
+    """Analytic wrist seed with cardinal-axis trigonometric roundoff removed.
+
+    A nominal zero sine can otherwise construct 89.99999999999996 degrees
+    instead of the legal 90-degree boundary and lose an equivalent IK branch.
+    Only dimensionless trig values within eight machine epsilons of zero are
+    cleaned; joint angles/bounds and final requested-direction checks stay strict.
+    """
+    sine, cosine = math.sin(relative), math.cos(relative)
+    epsilon = 8 * math.ulp(1.0)
+    if abs(sine) <= epsilon:
+        sine = math.copysign(0., sine)
+    if abs(cosine) <= epsilon:
+        cosine = math.copysign(0., cosine)
+    return math.atan2(sine / math.cos(plane_angle), cosine)
+
+
 def batch_matrices(robot,qs):
     qs=np.asarray(qs,float).reshape(-1,5);count=len(qs)
     matrix=np.repeat(np.eye(4)[None],count,axis=0)
@@ -87,7 +104,7 @@ def candidates(robot,xyz,yaw,tilt,reference,current,held_wrist=None):
     choices={}
     for yaw_offset in (0,90,180,270):
         angle=math.radians(yaw+yaw_offset);desired=np.array([math.cos(angle),math.sin(angle)])
-        relative=angle-a;wrist=math.atan2(math.sin(relative)/math.cos(S),math.cos(relative))
+        relative=angle-a;wrist=wrist_seed(relative,S)
         roots=[]
         for elbow in ((math.acos(cosine),-math.acos(cosine)) if -1<=cosine<=1 else ()):
             shoulder=math.atan2(-yy,zz)-math.atan2(l2*math.sin(elbow),l1+l2*math.cos(elbow))

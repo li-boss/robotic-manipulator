@@ -52,9 +52,17 @@ def angle(config, joint, value):
     return int(value)
 
 
-def timing(config):
+# 用户2026-11-13要求：跳舞前回到起始姿态（竖直）一步，全部关节同批在300 ms内到位。
+# 仅这一种用途可以低于500 ms，且只能恰好是300 ms；其他所有指令仍为500～10000 ms。
+START_MOVE_MS = 300
+
+
+def timing(config, start_move=False):
     duration, settle = config.get("motion_ms"), config.get("settle_ms")
-    if not isinstance(duration, int) or isinstance(duration, bool) or not 500 <= duration <= 10000:
+    if start_move:
+        if type(duration) is not int or duration != START_MOVE_MS:
+            raise ValueError(f"跳舞回到起始姿态的同步用时须恰好为 {START_MOVE_MS} ms")
+    elif not isinstance(duration, int) or isinstance(duration, bool) or not 500 <= duration <= 10000:
         raise ValueError("本练习要求 motion_ms 为 500～10000 的整数")
     if not isinstance(settle, int) or isinstance(settle, bool) or not 100 <= settle <= 5000:
         raise ValueError("settle_ms 必须为 100～5000 的整数")
@@ -109,12 +117,13 @@ class Controller:
             raise RuntimeError(f"读取不完整，禁止记录姿态：{results}")
         return [row["angle"] for row in results]
 
-    def write(self, pairs, hold_ms=None, retries=0):
+    def write(self, pairs, hold_ms=None, retries=0, start_move=False):
         """hold_ms 只能缩短写入后的等待（衔接下一段），不改变角度与时间校验。
-        retries 为单关节写入失败后重发同一绝对目标的次数（用户10-30：网页入口最多2次，默认0）。"""
+        retries 为单关节写入失败后重发同一绝对目标的次数（用户10-30：网页入口最多2次，默认0）。
+        start_move=True 仅用于跳舞前同步回到起始姿态，用时必须恰好为 START_MOVE_MS。"""
         if self.real and self.config.get("hardware_ready") is not True:
             raise ValueError("实机未就绪，禁止下发运动指令")
-        duration, settle = timing(self.config)
+        duration, settle = timing(self.config, start_move=start_move)
         if hold_ms is not None and (type(hold_ms) is not int or not 0 <= hold_ms <= duration + settle):
             raise ValueError("写入后等待时间须为0～用时+停稳之间的整数毫秒")
         if type(retries) is not int or not 0 <= retries <= MAX_WRITE_RETRIES:

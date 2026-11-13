@@ -1,0 +1,54 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>edge_one 原图人工四角标注</title>
+<style>
+body{font:16px/1.6 system-ui,sans-serif;margin:24px;color:#182330;background:#f4f6f8}main{max-width:1100px;margin:auto}
+canvas{display:block;width:640px;height:auto;cursor:crosshair;image-rendering:auto}#viewport{overflow:auto;background:#ddd;border:1px solid #9aa4b0}
+button{padding:8px 14px;margin:8px 8px 8px 0}pre{white-space:pre-wrap}label{display:block}small{color:#586473}
+</style><main>
+<h1>edge_one：只标蓝色顶面四角</h1>
+<p>请从蓝色顶面的<strong>左上角</strong>开始，沿画面顺时针点击：<strong>左上 → 右上 → 右下 → 左下</strong>。第1→第2点为上边方向。只点蓝色顶面，勿点白色侧面或整块外框；看不清的角不要猜。</p>
+<p id="frame"></p><small>这是一张留存帧，不代表230毫米故障现场。图中不显示任何模型四角。缩放只用于显示，导出坐标始终对应原始640×480。</small>
+<div><button id="zoom">显示放大2倍</button><button id="undo">撤销一点</button><button id="reset">清空</button></div>
+<div id="viewport"><canvas id="image" width="640" height="480"></canvas></div>
+<pre id="coordinates"></pre>
+<label><input id="confirmed" type="checkbox"> 我本人已核对：四个角均清楚可见，点在蓝色顶面，顺序符合要求。</label>
+<button id="download" disabled>下载人工标注JSON</button><p id="status"></p>
+</main><script>
+'use strict';
+const meta=__META_JSON__;
+const points=[],canvas=document.getElementById('image'),ctx=canvas.getContext('2d'),img=new Image();
+let zoomed=false;
+document.getElementById('frame').textContent=meta.source_frame_id+' | SHA256 '+meta.raw_sha256;
+function valid(){
+  if(points.length!==4)return false;
+  const crosses=points.map((p,i)=>{const a=points[(i+1)%4],b=points[(i+2)%4];return(a[0]-p[0])*(b[1]-a[1])-(a[1]-p[1])*(b[0]-a[0]);});
+  return crosses.every(v=>v>0)&&Math.abs(points.reduce((s,p,i)=>s+p[0]*points[(i+1)%4][1]-p[1]*points[(i+1)%4][0],0))>=8;
+}
+function render(){
+  ctx.clearRect(0,0,640,480);ctx.drawImage(img,0,0);
+  if(points.length){ctx.strokeStyle='#ed3344';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(...points[0]);points.slice(1).forEach(p=>ctx.lineTo(...p));if(points.length===4)ctx.closePath();ctx.stroke();}
+  points.forEach((p,i)=>{ctx.fillStyle='#ed3344';ctx.beginPath();ctx.arc(...p,3,0,Math.PI*2);ctx.fill();ctx.font='16px sans-serif';ctx.fillText(String(i+1),p[0]+5,p[1]+15);});
+  document.getElementById('coordinates').textContent=JSON.stringify(points,null,2);
+  document.getElementById('download').disabled=!valid()||!document.getElementById('confirmed').checked;
+  document.getElementById('status').textContent=points.length<4?'下一点：'+['左上','右上','右下','左下'][points.length]:valid()?'已画出四角，请核对后勾选并下载。':'角点顺序或形状无效，请撤销重画。';
+}
+canvas.onclick=event=>{
+  if(points.length>=4)return;
+  const r=canvas.getBoundingClientRect(),x=(event.clientX-r.left)*640/r.width,y=(event.clientY-r.top)*480/r.height;
+  if(x<0||y<0||x>=640||y>=480)return;
+  points.push([+x.toFixed(3),+y.toFixed(3)]);document.getElementById('confirmed').checked=false;render();
+};
+document.getElementById('undo').onclick=()=>{points.pop();document.getElementById('confirmed').checked=false;render();};
+document.getElementById('reset').onclick=()=>{points.length=0;document.getElementById('confirmed').checked=false;render();};
+document.getElementById('zoom').onclick=()=>{zoomed=!zoomed;canvas.style.width=zoomed?'1280px':'640px';document.getElementById('zoom').textContent=zoomed?'恢复原始显示':'显示放大2倍';};
+document.getElementById('confirmed').onchange=render;
+document.getElementById('download').onclick=()=>{
+  if(!valid()||!document.getElementById('confirmed').checked)return;
+  const value={...meta,human_confirmed:true,annotation_source:'user_clicks_on_unmarked_raw_image',
+    corner_order:'top-left, top-right, bottom-right, bottom-left; clockwise',corners:points.map(p=>p.slice()),annotated_at:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(value,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='edge_one_human_corners.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+img.onload=render;img.src='data:image/jpeg;base64,__JPEG_BASE64__';
+</script></html>

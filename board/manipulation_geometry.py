@@ -503,6 +503,7 @@ class ManipulationRobot(Robot):
         return [[command] for command in self.transition(start,end,carried)]
 
     def ik_directed(self,xyz,seed,yaw,tilt_deg=0,held_wrist=None):
+        from manipulation_ik import wrist_seed
         target=array(xyz,(3,),'目标')/1000
         if not arm.number(tilt_deg) or not 0<=tilt_deg<=45:raise ValueError('接近倾角须为0～45度')
         theta=math.radians(tilt_deg);radial=np.asarray(xyz[:2],float)
@@ -531,7 +532,7 @@ class ManipulationRobot(Robot):
             cosine=(yy*yy+zz*zz-l1*l1-l2*l2)/(2*l1*l2)
             if -1<=cosine<=1:
                 relative=math.radians(yaw+yaw_offset)-a
-                wrist=math.atan2(math.sin(relative)/math.cos(S),math.cos(relative))
+                wrist=wrist_seed(relative,S)
                 for elbow in (math.acos(cosine),-math.acos(cosine)):
                     shoulder=math.atan2(-yy,zz)-math.atan2(l2*math.sin(elbow),l1+l2*math.cos(elbow))
                     for winding in (-1,0,1):
@@ -710,6 +711,22 @@ def readiness(cfg,arms,require_path=False):
     return dict(ready=not issues,issues=issues,reports=reports)
 
 
+# 用户2026-11-13要求：随臂抓放连续运动。夹爪开合用时缩短，最后一步之前不停稳、不回读。
+GRIP_MS=800
+
+
+def mark_continuous(plan):
+    """随臂计划中，未衔接且不是最后一步的指令在用时结束后直接下发下一步（不停稳、不回读）；
+    最后一步仍停稳并回读。返回按此计算的预计用时（毫秒）。"""
+    steps=plan['steps'];dynamic=plan.get('capture_mode')=='joint_snapshot_v1'
+    for i,s in enumerate(steps):
+        s.pop('continuous',None)
+        if dynamic and i<len(steps)-1 and not s.get('blend_next_ms'):s['continuous']=True
+    plan['duration_ms']=sum(s['motion_ms']-s['blend_next_ms'] if s.get('blend_next_ms') else
+        s['motion_ms'] if s.get('continuous') else s['motion_ms']+s['settle_ms'] for s in steps)
+    return plan['duration_ms']
+
+
 def build_plan(cfg,arms,target,require_path=True,progress=None,reference=None):
     if reference is not None:
         if cfg.get('cad') is None:raise ValueError('九点引导仅适用于当前CAD人工目标模式')
@@ -743,7 +760,7 @@ def _build_plan(cfg,arms,target,require_path,tilt,progress=None,guided=None):
     block=np.asarray(cfg['block_size_mm']);z=cfg['table_z_mm']
     def grip(label,key):
         starts.append(current.copy());carries.append(attachment)
-        steps.append(dict(label=label,joints=[[6,arm.angle(arms,6,arms['gripper'][key])]],motion_ms=duration,settle_ms=settle))
+        steps.append(dict(label=label,joints=[[6,arm.angle(arms,6,arms['gripper'][key])]],motion_ms=GRIP_MS if dynamic else duration,settle_ms=settle))
         poses.append(robot.matrices(current))
     grip_base=None;grip_wrist=None;grip_tilt=None;grip_yaw=None
     def append(label,groups):
@@ -834,9 +851,10 @@ def _build_plan(cfg,arms,target,require_path,tilt,progress=None,guided=None):
     for s in steps:
         for joint,value in s['joints']:arm.angle(arms,joint,value)
         arm.timing(dict(arms,motion_ms=s['motion_ms'],settle_ms=s['settle_ms']))
+    plan=dict(capture_mode='joint_snapshot_v1' if dynamic else 'fixed_observation',steps=steps)
     return dict(strategy='manipulation',target=located,warnings=located['warnings'],steps=steps,poses=poses,
-        initial_angles=initial,capture_mode='joint_snapshot_v1' if dynamic else 'fixed_observation',
-        duration_ms=sum(s['motion_ms']-s['blend_next_ms'] if s.get('blend_next_ms') else s['motion_ms']+s['settle_ms'] for s in steps),
+        initial_angles=initial,capture_mode=plan['capture_mode'],
+        duration_ms=mark_continuous(plan),
         calibration_version=calibration_version(cfg),model_sha256=robot.digest,
         tool_matrix=robot.tool.tolist(),joints=[dict(origin=o.tolist(),axis=a.tolist()) for o,a,_,_ in robot.joints],
         servo_zero_deg=robot.offset.tolist(),servo_sign=robot.sign.tolist(),
