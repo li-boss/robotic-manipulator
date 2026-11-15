@@ -50,8 +50,8 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 
 | 标签 | 含义 | 本次推荐映射 |
 |---|---|---|
-| `smile` | 双侧嘴角微笑系数最小值 ≥0.2（跳舞预设） | `course` 课程舞蹈 |
-| `palm` | 张掌，分类器原标签 `stop`，置信度 ≥0.8 | `music` 音乐舞蹈 |
+| `smile` | 双侧嘴角微笑系数最小值 ≥0.2（跳舞预设） | `COURSE_DANCE_ROUTINE` 课程舞蹈 |
+| `palm` | 张掌，分类器原标签 `stop`，置信度 ≥0.8 | `MUSIC_DANCE_ROUTINE` 音乐舞蹈 |
 | `fist` | 握拳，置信度 ≥0.8 | 仅识别 |
 | `like` | 点赞，原标签 `thumb_up`，置信度 ≥0.8 | 仅识别 |
 | `ok` | OK，置信度 ≥0.8 | 仅识别 |
@@ -61,7 +61,7 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 两个检测器都看同一整帧，不用脸框裁剪手部区域。
 一个有效手势优先于微笑，两个分数不互相比较；多手不产生手势事件，多脸不产生微笑事件。
 接口每帧只返回一个事件，原始分数不改写。没有目标或输入为空返回 `None`。
-`wave` 不是现有分类器的目标标签；旧文档的 `snake` 已被 main 替换为 `course`。
+`wave` 不是现有分类器的目标标签；旧文档的 `snake` 已被 main 替换为 `COURSE_DANCE_ROUTINE`。
 
 ## 3. 先看识别（不连接机械臂）
 
@@ -89,10 +89,10 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 ```
 
 浏览器打开 `http://127.0.0.1:8092/modes`，选择表情手势跳舞、模拟竖直起点，
-允许 course 和 music，预览并开启模拟模式。终端二：
+允许 COURSE_DANCE_ROUTINE 和 MUSIC_DANCE_ROUTINE，预览并开启模拟模式。终端二：
 
 ```powershell
-.venv\Scripts\python.exe pc\run_gesture_dance.py --board http://127.0.0.1:8092 --recognizer gesture.recognizer:CombinedRecognizer --source webcam --map smile=course,palm=music --stable 5 --threshold 0.3
+.venv\Scripts\python.exe pc\run_gesture_dance.py --board http://127.0.0.1:8092 --recognizer gesture.recognizer:CombinedRecognizer --source webcam --map smile=COURSE_DANCE_ROUTINE,palm=MUSIC_DANCE_ROUTINE --stable 5 --threshold 0.3
 ```
 
 上面的模拟命令显式使用微笑阈值0.3和 `--stable 5`。实机默认使用 `DanceRecognizer`：
@@ -116,7 +116,7 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 .venv\Scripts\python.exe pc\run_gesture_dance.py --board http://192.168.137.100:8080 --source board
 ```
 
-实机运行默认已配置为电脑端模型 + 开发板摄像头、`smile=course,palm=music`、累计3次有效识别、微笑阈值0.2。
+实机运行默认已配置为电脑端模型 + 开发板摄像头、`smile=COURSE_DANCE_ROUTINE,palm=MUSIC_DANCE_ROUTINE`、累计3次有效识别、微笑阈值0.2。
 如需改用电脑摄像头，显式传入 `--source webcam`。网页会话仍须由现场人员预览并开启；
 不开启时电脑端运行器会等待，不提交任何动作。
 跳舞期间 B 的运行器等待任务结束，不继续识别；完成后才恢复。
@@ -131,7 +131,7 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 ```
 
 包括标签/阈值/空帧/优先级/资源释放、真实模型空背景检查，以及本机127.0.0.1假机械臂的
-“微笑→course、张掌→music”HTTP联调。缺少权重时真实模型检查跳过，其余逻辑测试仍执行。
+“微笑→COURSE_DANCE_ROUTINE、张掌→MUSIC_DANCE_ROUTINE”HTTP联调。缺少权重时真实模型检查跳过，其余逻辑测试仍执行。
 模拟任务 completed 只证明软件链路，不证明真实机械臂到位。实机动作仍待现场验收。
 
 Windows 检出时根目录 `.gitattributes` 固定 URDF 为 LF，避免 Git 自动转 CRLF 造成

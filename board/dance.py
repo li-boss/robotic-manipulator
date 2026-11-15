@@ -4,7 +4,7 @@
   sway   左右摇摆：1 号底座在起始角 ±幅度 间来回
   nod    点头：4 号腕关节在起始角 ±幅度 间来回
   circle 画圈：1 号与 4 号按圆周 8 个点组合运动（末端画一个小圈）
-  keyframes 关键帧：模板里逐拍写明绝对目标角（课程舞蹈 course 与音乐舞蹈 music 即用这种方式）。
+  keyframes 关键帧：模板里逐拍写明绝对目标角（课程舞蹈 COURSE_DANCE_ROUTINE 与音乐舞蹈 MUSIC_DANCE_ROUTINE 即用这种方式）。
          要求起始姿态按钮的六个角度与模板的 start_angles 完全相同；超出本机配置范围的值
          必须在模板里人工写成合法值并注明，代码不会自动截断。
 
@@ -58,11 +58,11 @@ MUSIC_KEYFRAMES = [
     dict(_BACK, **{'4': 90, 'motion_ms': 1500}), dict(_BACK, **{'4': 90, '6': 170, 'motion_ms': 500}),
 ]
 DEFAULT_DANCES = dict(version=1, routines={
-    'music': dict(label='音乐舞蹈', pattern='keyframes', start_angles=[90, 90, 90, 90, 90, 90], repeats=1,
+    'MUSIC_DANCE_ROUTINE': dict(label='音乐舞蹈', pattern='keyframes', start_angles=[90, 90, 90, 90, 90, 90], repeats=1,
                   motion_ms=600, keyframes=MUSIC_KEYFRAMES,
                   source='Zeta Education 教程 Dancing With Music!（DOFBOT 类机械臂）',
                   adjusted='62处超出本机配置范围的值已改为：1～4、6号 0→10、180→170；5号 0→90、180→170'),
-    'course': dict(label='课程舞蹈', pattern='keyframes', start_angles=[90, 90, 90, 90, 90, 90], repeats=1,
+    'COURSE_DANCE_ROUTINE': dict(label='课程舞蹈', pattern='keyframes', start_angles=[90, 90, 90, 90, 90, 90], repeats=1,
                    motion_ms=500, keyframes=COURSE_KEYFRAMES,
                    source='课程资料 02_第二阶段 任务7：机械臂跳舞',
                    adjusted='第12拍1号0→10、第13拍3号180→170与4号0→10、第14拍6号180→170（本机配置范围）'),

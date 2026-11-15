@@ -1,7 +1,7 @@
 {
   "version": 1,
   "routines": {
-    "music": {
+    "MUSIC_DANCE_ROUTINE": {
       "label": "音乐舞蹈",
       "pattern": "keyframes",
       "start_angles": [
@@ -237,7 +237,7 @@
       "source": "Zeta Education 教程 Dancing With Music!（DOFBOT 类机械臂）",
       "adjusted": "62处超出本机配置范围的值已改为：1～4、6号 0→10、180→170；5号 0→90、180→170"
     },
-    "course": {
+    "COURSE_DANCE_ROUTINE": {
       "label": "课程舞蹈",
       "pattern": "keyframes",
       "start_angles": [

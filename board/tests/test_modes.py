@@ -55,12 +55,12 @@ class ModesTests(unittest.TestCase):
     # ---------------------------------------------------------------- 门控
     def test_pc_requests_rejected_until_armed_and_bound_to_session(self):
         for call in (lambda: self.modes.api_block_frame({}),
-                     lambda: self.modes.api_gesture(dict(routine='music', request_id='a' * 32))):
+                     lambda: self.modes.api_gesture(dict(routine='MUSIC_DANCE_ROUTINE', request_id='a' * 32))):
             with self.assertRaises(ValueError):
                 call()
         session = self.dance_session()
         with self.assertRaises(ValueError):   # 会话编号不符
-            self.modes.api_gesture(dict(session_id='f' * 32, routine='music', request_id='a' * 32))
+            self.modes.api_gesture(dict(session_id='f' * 32, routine='MUSIC_DANCE_ROUTINE', request_id='a' * 32))
         with self.assertRaises(ValueError):   # 模式类型不符
             self.modes.api_block_frame(dict(session_id=session['id']))
         self.assertEqual(simulate.SimFake.calls, [])
@@ -72,7 +72,7 @@ class ModesTests(unittest.TestCase):
         offer = self.modes.preview(dict(kind='gesture_dance', base_state_id=BASE_ID))
         dances = self.demo.data_dir / 'dances.json'
         data = json.loads(dances.read_text())
-        data['routines']['music']['keyframes'][0]['1'] = 20
+        data['routines']['MUSIC_DANCE_ROUTINE']['keyframes'][0]['1'] = 20
         dances.write_text(json.dumps(data))
         with self.assertRaises(ValueError):
             self.modes.arm(dict(token=offer['token'], confirmed=True))   # 预览后动作改变
@@ -88,8 +88,8 @@ class ModesTests(unittest.TestCase):
     # ---------------------------------------------------------------- 跳舞
     def test_dance_executes_exact_previewed_steps_and_dedupes(self):
         session = self.dance_session()
-        planned = session['plan']['routines']['music']['steps']
-        request = dict(session_id=session['id'], routine='music', request_id='b' * 32, label='smile', confidence=.9)
+        planned = session['plan']['routines']['MUSIC_DANCE_ROUTINE']['steps']
+        request = dict(session_id=session['id'], routine='MUSIC_DANCE_ROUTINE', request_id='b' * 32, label='smile', confidence=.9)
         start = list(simulate.SimFake.values)
         self.modes.api_gesture(request);self.wait()
         calls = expected_calls(planned, start)
@@ -99,13 +99,13 @@ class ModesTests(unittest.TestCase):
         self.assertEqual(self.control.job['status'], 'completed')
 
     def test_dance_limits_cooldown_and_unauthorized_routine(self):
-        session = self.arm(kind='gesture_dance', base_state_id=BASE_ID, routines=['music'], max_actions=1, cooldown_s=30)
+        session = self.arm(kind='gesture_dance', base_state_id=BASE_ID, routines=['MUSIC_DANCE_ROUTINE'], max_actions=1, cooldown_s=30)
         with self.assertRaises(ValueError):
-            self.modes.api_gesture(dict(session_id=session['id'], routine='course', request_id=secrets.token_hex(16)))
-        self.modes.api_gesture(dict(session_id=session['id'], routine='music', request_id=secrets.token_hex(16)))
+            self.modes.api_gesture(dict(session_id=session['id'], routine='COURSE_DANCE_ROUTINE', request_id=secrets.token_hex(16)))
+        self.modes.api_gesture(dict(session_id=session['id'], routine='MUSIC_DANCE_ROUTINE', request_id=secrets.token_hex(16)))
         self.wait()
         with self.assertRaises(ValueError):    # 次数用完，会话结束
-            self.modes.api_gesture(dict(session_id=session['id'], routine='music', request_id=secrets.token_hex(16)))
+            self.modes.api_gesture(dict(session_id=session['id'], routine='MUSIC_DANCE_ROUTINE', request_id=secrets.token_hex(16)))
         self.assertIsNone(self.modes.session)
 
     def test_out_of_range_dance_rejected_without_clipping(self):
@@ -121,7 +121,7 @@ class ModesTests(unittest.TestCase):
                 build_routine(arms, dict(state, angles=[90, 100, 60, 60, 90, 90]), 'x', bad)
 
     # ---------------------------------------------------------------- 网页跳舞按钮
-    def web_preview(self, routine='course', state=BASE_ID):
+    def web_preview(self, routine='COURSE_DANCE_ROUTINE', state=BASE_ID):
         return self.modes.dance_preview(dict(routine=routine, state_id=state))
 
     def web_start(self, preview, **extra):
@@ -149,7 +149,7 @@ class ModesTests(unittest.TestCase):
 
     def test_music_dance_matches_tutorial_with_marked_adjustments(self):
         from dance import MUSIC_KEYFRAMES
-        preview = self.web_preview('music')
+        preview = self.web_preview('MUSIC_DANCE_ROUTINE')
         beats = [s for s in preview['routine']['steps'] if s['label'].startswith('音乐舞蹈')]
         self.assertEqual(len(beats), 26)
         # 教程起手 write6(0,90,0,180,90,90,2000) → 本机 1号10、3号10、4号170
@@ -168,14 +168,14 @@ class ModesTests(unittest.TestCase):
 
     def test_keyframes_require_matching_start_pose_and_never_clip(self):
         with self.assertRaisesRegex(ValueError, '需要起始姿态'):
-            self.web_preview('course', OTHER_ID)
+            self.web_preview('COURSE_DANCE_ROUTINE', OTHER_ID)
         dances = self.demo.data_dir / 'dances.json'
-        data = json.loads(dances.read_text());data['routines']['course']['keyframes'][12]['3'] = 180;dances.write_text(json.dumps(data))
+        data = json.loads(dances.read_text());data['routines']['COURSE_DANCE_ROUTINE']['keyframes'][12]['3'] = 180;dances.write_text(json.dumps(data))
         with self.assertRaisesRegex(ValueError, '180'):
-            self.web_preview('course')
-        data['routines']['course']['keyframes'][12]['3'] = 170.0;dances.write_text(json.dumps(data))
+            self.web_preview('COURSE_DANCE_ROUTINE')
+        data['routines']['COURSE_DANCE_ROUTINE']['keyframes'][12]['3'] = 170.0;dances.write_text(json.dumps(data))
         with self.assertRaisesRegex(ValueError, '整数'):
-            self.web_preview('course')
+            self.web_preview('COURSE_DANCE_ROUTINE')
         self.assertEqual(simulate.SimFake.calls, [])
 
     def test_web_button_runs_exact_previewed_course_and_dedupes(self):
@@ -192,14 +192,14 @@ class ModesTests(unittest.TestCase):
 
     # ---------------------------------------------------------------- 跳舞前回到竖直（用户11-13）
     def test_start_pose_is_one_step_listing_all_six_targets(self):
-        steps = self.web_preview('music')['routine']['steps']
+        steps = self.web_preview('MUSIC_DANCE_ROUTINE')['routine']['steps']
         self.assertTrue(steps[0]['label'].startswith('到起始姿态'))
         self.assertEqual(steps[0]['joints'], [[j, 90] for j in range(1, 7)])
         self.assertFalse(any(s['label'].startswith('到起始姿态') for s in steps[1:]))
 
     def test_already_upright_starts_first_beat_without_start_move(self):
         simulate.SimFake.values[:] = [90] * 6
-        preview = self.web_preview('music')
+        preview = self.web_preview('MUSIC_DANCE_ROUTINE')
         self.web_start(preview);self.wait()
         self.assertEqual(simulate.SimFake.calls[0], [tuple(x) for x in preview['routine']['steps'][1]['joints']])
         self.assertEqual(len(simulate.SimFake.calls), len(preview['routine']['steps']) - 1)
@@ -208,7 +208,7 @@ class ModesTests(unittest.TestCase):
 
     def test_start_move_is_one_batch_when_model_check_passes(self):
         simulate.SimFake.values[:] = [90, 100, 60, 60, 130, 90]
-        preview = self.web_preview('music')
+        preview = self.web_preview('MUSIC_DANCE_ROUTINE')
         self.web_start(preview);self.wait()
         self.assertEqual(simulate.SimFake.calls[0], [(2, 90), (3, 90), (4, 90), (5, 90)])
         self.assertEqual(simulate.SimFake.calls[1], [tuple(x) for x in preview['routine']['steps'][1]['joints']])
@@ -224,14 +224,14 @@ class ModesTests(unittest.TestCase):
             simulate.SimFake.calls.clear()
             simulate.SimFake.values[:] = [90, 100, 60, 60, 130, 90]
             with patcher:
-                self.web_start(self.web_preview('music'));self.wait()
+                self.web_start(self.web_preview('MUSIC_DANCE_ROUTINE'));self.wait()
             self.assertEqual(self.control.job['status'], 'failed')
             self.assertIn('未运动', self.control.job['error']);self.assertIn(text, self.control.job['error'])
             self.assertEqual(simulate.SimFake.calls, [])
 
     def test_start_move_uses_exactly_300ms_and_other_motion_keeps_500ms_floor(self):
         import arm
-        step = self.web_preview('music')['routine']['steps'][0]
+        step = self.web_preview('MUSIC_DANCE_ROUTINE')['routine']['steps'][0]
         self.assertEqual((step['motion_ms'], arm.START_MOVE_MS), (300, 300))
         cfg = dict(motion_ms=300, settle_ms=300)
         self.assertEqual(arm.timing(cfg, start_move=True), (300, 300))
@@ -245,7 +245,7 @@ class ModesTests(unittest.TestCase):
         self.assertIsNotNone(self.modes.check_start_move([90, 45, 45, 45, 90], [[2, 10], [3, 10]], 1000))
 
     def test_web_button_requires_confirmation_and_current_plan(self):
-        preview = self.web_preview('music', BASE_ID)
+        preview = self.web_preview('MUSIC_DANCE_ROUTINE', BASE_ID)
         with self.assertRaises(ValueError):
             self.web_start(preview, confirmed=False)
         with self.assertRaisesRegex(ValueError, '不同'):
@@ -253,7 +253,7 @@ class ModesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '变化'):
             self.web_start(preview, states_sha256='0' * 64)
         dances = self.demo.data_dir / 'dances.json'
-        data = json.loads(dances.read_text());data['routines']['music']['keyframes'][0]['1'] = 20;dances.write_text(json.dumps(data))
+        data = json.loads(dances.read_text());data['routines']['MUSIC_DANCE_ROUTINE']['keyframes'][0]['1'] = 20;dances.write_text(json.dumps(data))
         with self.assertRaisesRegex(ValueError, '不同'):
             self.web_start(preview)
         self.assertEqual(simulate.SimFake.calls, [])
@@ -278,7 +278,7 @@ class ModesTests(unittest.TestCase):
     def test_web_button_blocked_while_mode_armed_and_stop_halts_later_beats(self):
         self.dance_session()
         with self.assertRaisesRegex(ValueError, '关闭模式'):
-            self.web_start(self.web_preview('music', BASE_ID))
+            self.web_start(self.web_preview('MUSIC_DANCE_ROUTINE', BASE_ID))
         self.modes.disarm()
         simulate.SimFake.max_delay_ms = 200
         preview = self.web_preview()
@@ -299,11 +299,11 @@ class ModesTests(unittest.TestCase):
     def test_disarm_during_dance_stops_remaining_steps(self):
         session = self.dance_session()
         simulate.SimFake.max_delay_ms = 50
-        self.modes.api_gesture(dict(session_id=session['id'], routine='music', request_id='c' * 32))
+        self.modes.api_gesture(dict(session_id=session['id'], routine='MUSIC_DANCE_ROUTINE', request_id='c' * 32))
         time.sleep(.2)
         self.modes.disarm()
         self.wait()
-        total = len(session['plan']['routines']['music']['steps'])
+        total = len(session['plan']['routines']['MUSIC_DANCE_ROUTINE']['steps'])
         self.assertLess(len(simulate.SimFake.calls), total)
         self.assertEqual(self.control.job['status'], 'stopped')
 
@@ -316,7 +316,7 @@ class ModesTests(unittest.TestCase):
                 raise RuntimeError('synthetic I2C error')
             return original(fake, pairs, hold_ms, retries, start_move)
         with patch.object(simulate.SimFake, 'write', failing):
-            self.modes.api_gesture(dict(session_id=session['id'], routine='music', request_id='d' * 32))
+            self.modes.api_gesture(dict(session_id=session['id'], routine='MUSIC_DANCE_ROUTINE', request_id='d' * 32))
             self.wait()
         self.assertEqual(len(simulate.SimFake.calls), 3)
         self.assertEqual(self.control.job['status'], 'failed')
@@ -328,7 +328,7 @@ class ModesTests(unittest.TestCase):
         arms = json.loads(self.control.path.read_text());arms['motion_ms'] = 1600
         self.control.path.write_text(json.dumps(arms))
         with self.assertRaises(ValueError):
-            self.modes.api_gesture(dict(session_id=session['id'], routine='music', request_id='e' * 32))
+            self.modes.api_gesture(dict(session_id=session['id'], routine='MUSIC_DANCE_ROUTINE', request_id='e' * 32))
         self.assertIsNone(self.modes.session);self.assertEqual(simulate.SimFake.calls, [])
 
     # ---------------------------------------------------------------- 方块抓取

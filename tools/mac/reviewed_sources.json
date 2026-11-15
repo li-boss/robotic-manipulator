@@ -1,6 +1,6 @@
 {
-  "AGENTS.md": "ba027ed2119306659676eafcc70fc2d33fd8f8b237415326ffdffdab735e4cb8",
-  "机械臂操作准则.md": "9fc8ba6a230203faf29c5a0232885065fb9ca56963c07bea3aa44088b08d8d2e",
+  "AGENTS.md": "d3b5a21d861dfe7b36181a6cecda742f65f56d4c45f07fcab42a275531bd9a53",
+  "机械臂操作准则.md": "d98c74784bec3551dd211d74c54add2652cb922d6f41590c67268a338e8e5a73",
   "board/arm.py": "d8f41d39e99c4eb40eff6f54286e118c03cefe8bbaf5fe681450dc9a19ded4e7",
   "board/cad_geometry.py": "449b8d7d9089185e46fdd7f9eca9c28c49a409b0c7da435e813c5585187de6cd",
   "board/camera.py": "e7edcf420a711e18687e56e05cdcfe2347cef56e0a72304e35b7c7d831669574",
@@ -8,7 +8,7 @@
   "board/charuco_task.py": "b35730eb893f3236cfa60d441829108a078c9915d0e715e60a5a73ddae7d57b1",
   "board/charuco_worker.py": "ffd0e3185cc3db50197aa4f0907bcfcd4e9b498bdc207b330e21640d51fb5ff1",
   "board/control.py": "71d03d4c6c9d8aa3d86654ae124d5b63936a93ad0ecffffcb38e79b73d896815",
-  "board/dance.py": "648225a31f6cbc3e2a737d0251b8324fb4faaedd47f53c3494776d8ed822ff3c",
+  "board/dance.py": "bd9868f8918f97e003f0873d71d990600b29479d4924a1a8fbd88e03169b9bc7",
   "board/events.py": "9ad2309eec4bedc19b6e8970da2fd93754845639087af7aba3cf9c165e18b5de",
   "board/manipulation_collision.py": "27e1c5cd4f9608fd4ba8f0e4fb5e5fc61ff33cad5fbdcc93a13d9ea3528e4ea9",
   "board/manipulation_geometry.py": "41844194626b341549dc68914450877fbd294fe34db0449922fa9f8b0fcdef29",

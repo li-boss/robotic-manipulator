@@ -34,7 +34,7 @@ class CommandTests(unittest.TestCase):
                      "机械臂，画圈！", "机械臂画一个圈", "请机械臂画圈"):
             with self.subTest(text=text):
                 self.assertEqual(parse_command(text), "circle")
-        self.assertEqual(parse_command("机 械 臂 跳 课 程 舞。"), "course")
+        self.assertEqual(parse_command("机 械 臂 跳 课 程 舞。"), "COURSE_DANCE_ROUTINE")
         for text in ("", "不要画圈", "画圈吗", "机械臂画圈一下", "机械臂跳舞", "机械臂画圈然后跳课程舞"):
             with self.subTest(text=text):
                 self.assertIsNone(parse_command(text))
@@ -42,10 +42,10 @@ class CommandTests(unittest.TestCase):
     def test_command_table_is_loaded_and_rejects_conflicts(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "commands.json"
-            path.write_text(json.dumps({"circle": ["画一个圆"], "course": ["跳课程舞"]}))
+            path.write_text(json.dumps({"circle": ["画一个圆"], "COURSE_DANCE_ROUTINE": ["跳课程舞"]}))
             self.assertEqual(parse_command("画一个圆", path), "circle")
             self.assertIsNone(parse_command("画圈", path))
-            path.write_text(json.dumps({"circle": ["画圈"], "course": ["画 圈！"]}))
+            path.write_text(json.dumps({"circle": ["画圈"], "COURSE_DANCE_ROUTINE": ["画 圈！"]}))
             with self.assertRaises(ValueError):
                 parse_command("画圈", path)
             path.write_text(json.dumps({"unknown": ["画圈"]}))
@@ -119,16 +119,16 @@ class LocalHttpTests(unittest.TestCase):
         self.assertEqual(len(body["request_id"]), 32)
         self.assertTrue(any("completed" in line for line in logs))
 
-        state["mode"]["routines"] = ["course"]
+        state["mode"]["routines"] = ["COURSE_DANCE_ROUTINE"]
         self.assertTrue(run_once("command.wav", FakeASR("机械臂跳课程舞"), client, logs.append))
         self.assertEqual(len(state["requests"]), 2)
-        self.assertEqual(state["requests"][1]["routine"], "course")
+        self.assertEqual(state["requests"][1]["routine"], "COURSE_DANCE_ROUTINE")
 
         state["mode"]["armed"] = False
         with self.assertRaises(BoardError):
             run_once("command.wav", asr, client, logs.append)
         self.assertEqual(len(state["requests"]), 2)
-        state["mode"].update(armed=True, routines=["course"])
+        state["mode"].update(armed=True, routines=["COURSE_DANCE_ROUTINE"])
         with self.assertRaises(BoardError):
             run_once("command.wav", asr, client, logs.append)
         self.assertEqual(len(state["requests"]), 2)

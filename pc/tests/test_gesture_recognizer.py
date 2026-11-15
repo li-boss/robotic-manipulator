@@ -169,7 +169,7 @@ class LocalSimulationTests(unittest.TestCase):
                                           headers={'Content-Type': 'application/json', 'Origin': base})
                         with urlopen(request) as response:
                             return json.load(response)
-                    for label, routine in (('smile', 'course'), ('palm', 'music')):
+                    for label, routine in (('smile', 'COURSE_DANCE_ROUTINE'), ('palm', 'MUSIC_DANCE_ROUTINE')):
                         offer = web('/modes/preview', dict(kind='gesture_dance', base_state_id='0' * 32,
                                     routines=[routine], max_actions=1, cooldown_s=0))
                         web('/modes/arm', dict(token=offer['token'], confirmed=True))
@@ -177,7 +177,7 @@ class LocalSimulationTests(unittest.TestCase):
                                                  smile_detector=Evidence(face(.4)))
                         logs = []
                         try:
-                            run(client, rec, Source(), {'smile': 'course', 'palm': 'music'},
+                            run(client, rec, Source(), {'smile': 'COURSE_DANCE_ROUTINE', 'palm': 'MUSIC_DANCE_ROUTINE'},
                                 stable=5, threshold=.3, log=logs.append, max_seconds=30)
                         finally:
                             rec.close()

@@ -2,7 +2,7 @@
 
 `speech_recognition/` 将 WAV 转为文字，`microphone.py` 录音，`commands.py` 从 `commands.json` 读取口令并匹配动作；`pc/run_voice_dance.py` 调用开发板接口。
 
-在 `commands.json` 的 `circle`、`course` 列表中增删说法；下次运行即生效。例如“画圈”“画一个圈”都映射到 `circle`。只忽略空格和标点，整句不匹配就不提交动作；“不要画圈”等否定句不会触发。
+在 `commands.json` 的 `circle`、`COURSE_DANCE_ROUTINE` 列表中增删说法；下次运行即生效。例如“画圈”“画一个圈”都映射到 `circle`。只忽略空格和标点，整句不匹配就不提交动作；“不要画圈”等否定句不会触发。
 
 ## 安装
 

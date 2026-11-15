@@ -24,7 +24,7 @@ def parse_map(text):
     for item in filter(None, (x.strip() for x in text.split(','))):
         label, _, routine = item.partition('=')
         if not routine:
-            raise SystemExit('--map 格式：标签=动作，多个用逗号分隔，例如 smile=course,wave=music')
+            raise SystemExit('--map 格式：标签=动作，多个用逗号分隔，例如 smile=COURSE_DANCE_ROUTINE,wave=MUSIC_DANCE_ROUTINE')
         mapping[label.strip()] = routine.strip()
     return mapping
 
@@ -104,7 +104,7 @@ def main():
     parser.add_argument('--board', default=DEFAULT_BOARD)
     parser.add_argument('--recognizer', default='gesture.recognizer:DanceRecognizer', help='识别器类 模块:类名')
     parser.add_argument('--source', default='board', help='board（开发板摄像头，默认）/ webcam / webcam1 / none')
-    parser.add_argument('--map', default='smile=course,palm=music', help='标签=动作,标签=动作')
+    parser.add_argument('--map', default='smile=COURSE_DANCE_ROUTINE,palm=MUSIC_DANCE_ROUTINE', help='标签=动作,标签=动作')
     parser.add_argument('--stable', type=int, default=3, help='有效识别次数；允许中间漏检1帧')
     parser.add_argument('--threshold', type=float, default=0.2, help='置信度下限')
     args = parser.parse_args()
