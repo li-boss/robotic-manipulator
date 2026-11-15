@@ -13,8 +13,10 @@ import numpy as np
 import soundfile as sf
 
 from pc.armlink import BoardClient, BoardError
-from pc.run_voice_dance import run_once
-from pc.voice_control.commands import parse_command
+from pc.voice_control.pipeline import run_once
+from pc.voice_control.text_classification.classifier import ActionPrediction, load_classifier
+from pc.voice_control.text_classification.rules import RuleClassifier
+from pc.voice_control.text_classification.commands import parse_command
 from pc.voice_control.microphone import record_to_wav
 
 
@@ -29,34 +31,38 @@ class FakeASR:
 
 
 class CommandTests(unittest.TestCase):
-    def test_only_complete_commands_match(self):
-        for text in ("画圈", "画个圈", "画一个圈", "画一圈", "画圆圈",
-                     "机械臂，画圈！", "机械臂画一个圈", "请机械臂画圈"):
+    def test_only_complete_course_commands_match(self):
+        for text in ("跳舞", "跳课程舞", "机械臂跳课程舞", "机 械 臂 跳 课 程 舞。"):
             with self.subTest(text=text):
-                self.assertEqual(parse_command(text), "circle")
-        self.assertEqual(parse_command("机 械 臂 跳 课 程 舞。"), "COURSE_DANCE_ROUTINE")
-        for text in ("", "不要画圈", "画圈吗", "机械臂画圈一下", "机械臂跳舞", "机械臂画圈然后跳课程舞"):
+                self.assertEqual(parse_command(text), "COURSE_DANCE_ROUTINE")
+        for text in ("", "画圈", "画一个圈", "不要跳舞", "跳舞吗", "机械臂跳舞"):
             with self.subTest(text=text):
                 self.assertIsNone(parse_command(text))
 
-    def test_command_table_is_loaded_and_rejects_conflicts(self):
+    def test_command_table_rejects_removed_action(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "commands.json"
-            path.write_text(json.dumps({"circle": ["画一个圆"], "COURSE_DANCE_ROUTINE": ["跳课程舞"]}))
-            self.assertEqual(parse_command("画一个圆", path), "circle")
-            self.assertIsNone(parse_command("画圈", path))
-            path.write_text(json.dumps({"circle": ["画圈"], "COURSE_DANCE_ROUTINE": ["画 圈！"]}))
+            path.write_text(json.dumps({"COURSE_DANCE_ROUTINE": ["来跳课程舞"]}))
+            self.assertEqual(parse_command("来跳课程舞", path), "COURSE_DANCE_ROUTINE")
+            path.write_text(json.dumps({"circle": ["画圈"]}))
             with self.assertRaises(ValueError):
                 parse_command("画圈", path)
-            path.write_text(json.dumps({"unknown": ["画圈"]}))
+            path.write_text(json.dumps({"unknown": ["做动作"]}))
             with self.assertRaises(ValueError):
-                parse_command("画圈", path)
+                parse_command("做动作", path)
+
+    def test_classifier_contract(self):
+        self.assertEqual(RuleClassifier().predict("跳舞"), ActionPrediction("COURSE_DANCE_ROUTINE"))
+        self.assertIsNone(RuleClassifier().predict("画圈").action)
+        self.assertIsInstance(load_classifier("pc.voice_control.text_classification.rules:RuleClassifier"), RuleClassifier)
+        with self.assertRaises(ValueError):
+            load_classifier("RuleClassifier")
 
     def test_empty_or_unknown_text_never_contacts_board(self):
         class NoBoard:
             def mode(self):
                 raise AssertionError("未匹配口令不应访问开发板")
-        for text in ("", "今天天气很好"):
+        for text in ("", "今天天气很好", "画圈"):
             asr = FakeASR(text)
             logs = []
             self.assertFalse(run_once(Path("unused.wav"), asr, NoBoard(), logs.append))
@@ -68,7 +74,7 @@ class LocalHttpTests(unittest.TestCase):
     def test_authorized_command_submits_once(self):
         state = {
             "mode": {"armed": True, "kind": "gesture_dance", "session_id": "a" * 32,
-                     "routines": ["circle"], "busy": False},
+                     "routines": ["COURSE_DANCE_ROUTINE"], "busy": False},
             "requests": [],
         }
 
@@ -109,29 +115,42 @@ class LocalHttpTests(unittest.TestCase):
         self.addCleanup(server.shutdown)
         client = BoardClient(f"http://127.0.0.1:{server.server_port}")
         logs = []
-        asr = FakeASR("画一个圈")
+        asr = FakeASR("跳课程舞")
         self.assertTrue(run_once("command.wav", asr, client, logs.append))
         self.assertEqual(len(state["requests"]), 1)
         body = state["requests"][0]
         self.assertEqual(body["session_id"], "a" * 32)
-        self.assertEqual(body["routine"], "circle")
-        self.assertEqual(body["label"], "画一个圈")
+        self.assertEqual(body["routine"], "COURSE_DANCE_ROUTINE")
+        self.assertEqual(body["label"], "跳课程舞")
         self.assertEqual(len(body["request_id"]), 32)
         self.assertTrue(any("completed" in line for line in logs))
 
-        state["mode"]["routines"] = ["COURSE_DANCE_ROUTINE"]
-        self.assertTrue(run_once("command.wav", FakeASR("机械臂跳课程舞"), client, logs.append))
+        class SemanticClassifier:
+            def predict(self, text):
+                actions = {
+                    "跳课程中的舞蹈": "COURSE_DANCE_ROUTINE",
+                    "来段音乐舞蹈": "MUSIC_DANCE_ROUTINE",
+                }
+                return ActionPrediction(actions.get(text), 0.92)
+
+        self.assertTrue(run_once("command.wav", FakeASR("跳课程中的舞蹈"), client, logs.append,
+                                 classifier=SemanticClassifier()))
         self.assertEqual(len(state["requests"]), 2)
         self.assertEqual(state["requests"][1]["routine"], "COURSE_DANCE_ROUTINE")
+
+        state["mode"]["routines"] = ["MUSIC_DANCE_ROUTINE"]
+        self.assertTrue(run_once("command.wav", FakeASR("来段音乐舞蹈"), client, logs.append,
+                                 classifier=SemanticClassifier()))
+        self.assertEqual(state["requests"][2]["routine"], "MUSIC_DANCE_ROUTINE")
 
         state["mode"]["armed"] = False
         with self.assertRaises(BoardError):
             run_once("command.wav", asr, client, logs.append)
-        self.assertEqual(len(state["requests"]), 2)
-        state["mode"].update(armed=True, routines=["COURSE_DANCE_ROUTINE"])
+        self.assertEqual(len(state["requests"]), 3)
+        state["mode"].update(armed=True, routines=[])
         with self.assertRaises(BoardError):
             run_once("command.wav", asr, client, logs.append)
-        self.assertEqual(len(state["requests"]), 2)
+        self.assertEqual(len(state["requests"]), 3)
 
 
 class MicrophoneTests(unittest.TestCase):

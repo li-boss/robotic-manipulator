@@ -6,7 +6,7 @@ import unicodedata
 
 
 DEFAULT_COMMANDS_PATH = Path(__file__).with_name("commands.json")
-_ALLOWED_ROUTINES = {"circle", "COURSE_DANCE_ROUTINE"}
+_ALLOWED_ROUTINES = {"COURSE_DANCE_ROUTINE"}
 
 
 def normalize(text: str) -> str:

@@ -11,7 +11,7 @@
 | 表情手势跳舞 | 网页 `/modes` 开启 + `pc/run_gesture_dance.py` | 电脑端手势/微笑模型接入；默认读取开发板摄像头 |
 | 跳舞预设按钮（音乐舞蹈 / 课程舞蹈） | 网页首页“跳舞预设” | 在用 |
 | 电脑端规划提速 | `pc/plan_server.py`（开发板自动使用并复核，没开则本地计算） | 完成；Windows 待实测 |
-| 语音控制 | `pc/voice_control/`、`pc/run_voice_dance.py` | WAV/按键录音识别固定口令，触发已授权的画圈或课程舞蹈，见接口指南第 6 节 |
+| 语音控制 | `pc/voice_control/`（`python -m pc.voice_control`） | WAV/按键录音识别固定口令，触发已授权的课程舞蹈（分类器接口已预留），见接口指南第 6 节 |
 
 ## 目录
 
