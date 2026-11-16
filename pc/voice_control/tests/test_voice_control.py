@@ -57,7 +57,8 @@ class CommandTests(unittest.TestCase):
     def test_classifier_contract(self):
         self.assertEqual(FakeClassifier().predict("跳课程舞"), ActionPrediction("COURSE_DANCE_ROUTINE"))
         self.assertIsNone(FakeClassifier().predict("画圈").action)
-        self.assertIsInstance(load_classifier("pc.voice_control.tests.test_voice_control:FakeClassifier"), FakeClassifier)
+        loaded = load_classifier("pc.voice_control.tests.test_voice_control:FakeClassifier")
+        self.assertEqual(loaded.predict("跳课程舞"), ActionPrediction("COURSE_DANCE_ROUTINE"))
         with self.assertRaises(ValueError):
             load_classifier("FakeClassifier")
 

@@ -27,9 +27,10 @@ def main(argv=None) -> int:
         parser.error(f"WAV 文件不存在：{args.wav}")
 
     try:
-        classifier_spec = os.environ.get("VOICE_CONTROL_CLASSIFIER")
-        if not classifier_spec:
-            raise RuntimeError("文本分类模型尚未接入；配置 VOICE_CONTROL_CLASSIFIER=模块:类名 后再运行")
+        classifier_spec = os.environ.get(
+            "VOICE_CONTROL_CLASSIFIER",
+            "pc.voice_control.text_classification.classifier:IntentClassifier",
+        )
         classifier = load_classifier(classifier_spec)
         from pc.voice_control.speech_recognition.wenet_asr import WeNetASR
 
