@@ -23,7 +23,7 @@ def load_classifier(spec: str) -> ActionClassifier:
     """从 module:Class 加载无参分类器；模型实现可使用自己的默认权重目录。"""
     module_name, separator, class_name = spec.partition(":")
     if not separator or not module_name or not class_name:
-        raise ValueError("--classifier 须为 module:Class")
+        raise ValueError("分类器标识须为 module:Class")
     classifier = getattr(import_module(module_name), class_name)()
     if not callable(getattr(classifier, "predict", None)):
         raise TypeError("分类器须实现 predict(text) -> ActionPrediction")

@@ -1,4 +1,4 @@
-"""语音控制命令行入口：python -m pc.voice_control。"""
+"""语音控制命令行入口：python -m pc.voice_control.main。"""
 
 import argparse
 from pathlib import Path
@@ -6,7 +6,7 @@ import tempfile
 
 from pc.armlink import BoardClient, BoardError
 from .pipeline import run_once
-from .text_classification.classifier import load_classifier
+from .text_classification.rules import RuleClassifier
 
 
 DEFAULT_SIMULATOR = "http://127.0.0.1:8092"
@@ -21,20 +21,15 @@ def main(argv=None) -> int:
         "--board", default=DEFAULT_SIMULATOR,
         help=f"开发板服务地址；默认仅连接本机模拟服务 {DEFAULT_SIMULATOR}",
     )
-    parser.add_argument("--model-dir", type=Path, help="WeNet 模型目录，默认使用语音模块内的 models/wenet")
-    parser.add_argument("--classifier", default="pc.voice_control.text_classification.rules:RuleClassifier",
-                        help="文本分类器 module:Class；默认使用临时口令分类器")
     args = parser.parse_args(argv)
     if args.wav and not args.wav.expanduser().is_file():
         parser.error(f"WAV 文件不存在：{args.wav}")
 
     try:
-        from pc.voice_control.speech_recognition.wenet_asr import DEFAULT_MODEL_DIR, WeNetASR
+        from pc.voice_control.speech_recognition.wenet_asr import WeNetASR
 
-        recognizer = WeNetASR(
-            model_dir=args.model_dir or DEFAULT_MODEL_DIR, device="cpu"
-        )
-        classifier = load_classifier(args.classifier)
+        recognizer = WeNetASR(device="cpu")
+        classifier = RuleClassifier()
         client = BoardClient(args.board)
         if args.mic:
             from pc.voice_control.microphone import record_to_wav
