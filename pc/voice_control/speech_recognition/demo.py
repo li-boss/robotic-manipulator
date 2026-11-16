@@ -1,6 +1,26 @@
 import argparse
 from pathlib import Path
 import sys
+import time
+
+
+def run_loop(recognizer, wav_file: Path, input_fn=input, output=print) -> None:
+    """保持模型加载；每次按回车后重新转写同一个 WAV，输入 q 退出。"""
+    while True:
+        try:
+            choice = input_fn("按回车识别一次，输入 q 退出：").strip().lower()
+        except EOFError:
+            return
+        if choice in {"q", "quit"}:
+            return
+        if choice:
+            output("请输入回车或 q")
+            continue
+        started = time.perf_counter()
+        text = recognizer.transcribe(wav_file)
+        elapsed = time.perf_counter() - started
+        output(text or "（空）")
+        output(f"本次转写耗时：{elapsed:.3f} 秒")
 
 
 def main() -> int:
@@ -20,6 +40,7 @@ def main() -> int:
         default="auto",
         help="auto 优先 CUDA，否则 CPU；MPS 需显式指定",
     )
+    parser.add_argument("--loop", action="store_true", help="保持模型加载，按回车反复转写同一 WAV")
     args = parser.parse_args()
     if not args.wav.expanduser().is_file():
         parser.error(f"音频文件不存在：{args.wav}")
@@ -29,7 +50,16 @@ def main() -> int:
 
         recognizer = WeNetASR(model_dir=args.model_dir, device=args.device)
         print(f"计算设备：{recognizer.device}", file=sys.stderr)
-        text = recognizer.transcribe(args.wav)
+        if args.loop:
+            run_loop(recognizer, args.wav)
+        else:
+            text = recognizer.transcribe(args.wav)
+            print(text)
+            if not text:
+                print("模型未输出可显示文字。", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("已退出循环。", file=sys.stderr)
+        return 130
     except ImportError as exc:
         print(
             f"依赖导入失败：{exc}。请按 pc/voice_control/speech_recognition/README.md 安装环境。",
@@ -41,9 +71,6 @@ def main() -> int:
         if args.device == "mps":
             print("如遇 MPS 算子兼容问题，可显式指定 --device cpu。", file=sys.stderr)
         return 1
-    print(text)
-    if not text:
-        print("模型未输出可显示文字。", file=sys.stderr)
     return 0
 
 
