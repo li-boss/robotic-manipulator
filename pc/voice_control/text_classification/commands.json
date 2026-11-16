@@ -1,7 +1,10 @@
 {
-  "COURSE_DANCE_ROUTINE": [
-    "跳舞",
-    "跳课程舞",
-    "机械臂跳课程舞"
-  ]
+  "MUSIC_DANCE_ROUTINE": "音乐舞蹈",
+  "COURSE_DANCE_ROUTINE": "课程舞蹈",
+  "POSE_VERTICAL": "调整到已保存的竖直姿态",
+  "POSE_OBSERVE": "调整到已保存的观察姿态",
+  "SET_SERVO_ABS_ANGLE": "指定舵机转到指定绝对角度",
+  "START_BLOCK_GRASP": "开始方块识别夹取",
+  "START_EXPR_RECOG": "开始表情识别",
+  "START_GESTURE_RECOG": "开始手势识别"
 }

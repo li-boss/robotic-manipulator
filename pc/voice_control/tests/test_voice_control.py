@@ -15,8 +15,7 @@ import soundfile as sf
 from pc.armlink import BoardClient, BoardError
 from pc.voice_control.pipeline import run_once
 from pc.voice_control.text_classification.classifier import ActionPrediction, load_classifier
-from pc.voice_control.text_classification.rules import RuleClassifier
-from pc.voice_control.text_classification.commands import parse_command
+from pc.voice_control.text_classification.commands import load_commands
 from pc.voice_control.microphone import record_to_wav
 
 
@@ -30,33 +29,37 @@ class FakeASR:
         return self.text
 
 
-class CommandTests(unittest.TestCase):
-    def test_only_complete_course_commands_match(self):
-        for text in ("跳舞", "跳课程舞", "机械臂跳课程舞", "机 械 臂 跳 课 程 舞。"):
-            with self.subTest(text=text):
-                self.assertEqual(parse_command(text), "COURSE_DANCE_ROUTINE")
-        for text in ("", "画圈", "画一个圈", "不要跳舞", "跳舞吗", "机械臂跳舞"):
-            with self.subTest(text=text):
-                self.assertIsNone(parse_command(text))
+class FakeClassifier:
+    def predict(self, text):
+        return ActionPrediction({"跳课程舞": "COURSE_DANCE_ROUTINE"}.get(text))
 
-    def test_command_table_rejects_removed_action(self):
+
+class CommandTests(unittest.TestCase):
+    def test_command_catalog(self):
+        self.assertEqual(set(load_commands()), {
+            "MUSIC_DANCE_ROUTINE", "COURSE_DANCE_ROUTINE", "POSE_VERTICAL",
+            "POSE_OBSERVE", "SET_SERVO_ABS_ANGLE", "START_BLOCK_GRASP",
+            "START_EXPR_RECOG", "START_GESTURE_RECOG",
+        })
+
+    def test_command_catalog_rejects_invalid_entries(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "commands.json"
-            path.write_text(json.dumps({"COURSE_DANCE_ROUTINE": ["来跳课程舞"]}))
-            self.assertEqual(parse_command("来跳课程舞", path), "COURSE_DANCE_ROUTINE")
-            path.write_text(json.dumps({"circle": ["画圈"]}))
+            path.write_text(json.dumps({"COURSE_DANCE_ROUTINE": "课程舞蹈"}))
+            self.assertEqual(load_commands(path), {"COURSE_DANCE_ROUTINE": "课程舞蹈"})
+            path.write_text(json.dumps({"circle": "画圈"}))
             with self.assertRaises(ValueError):
-                parse_command("画圈", path)
-            path.write_text(json.dumps({"unknown": ["做动作"]}))
+                load_commands(path)
+            path.write_text(json.dumps({"NEW_ACTION": ""}))
             with self.assertRaises(ValueError):
-                parse_command("做动作", path)
+                load_commands(path)
 
     def test_classifier_contract(self):
-        self.assertEqual(RuleClassifier().predict("跳舞"), ActionPrediction("COURSE_DANCE_ROUTINE"))
-        self.assertIsNone(RuleClassifier().predict("画圈").action)
-        self.assertIsInstance(load_classifier("pc.voice_control.text_classification.rules:RuleClassifier"), RuleClassifier)
+        self.assertEqual(FakeClassifier().predict("跳课程舞"), ActionPrediction("COURSE_DANCE_ROUTINE"))
+        self.assertIsNone(FakeClassifier().predict("画圈").action)
+        self.assertIsInstance(load_classifier("pc.voice_control.tests.test_voice_control:FakeClassifier"), FakeClassifier)
         with self.assertRaises(ValueError):
-            load_classifier("RuleClassifier")
+            load_classifier("FakeClassifier")
 
     def test_empty_or_unknown_text_never_contacts_board(self):
         class NoBoard:
@@ -65,9 +68,21 @@ class CommandTests(unittest.TestCase):
         for text in ("", "今天天气很好", "画圈"):
             asr = FakeASR(text)
             logs = []
-            self.assertFalse(run_once(Path("unused.wav"), asr, NoBoard(), logs.append))
+            self.assertFalse(run_once(Path("unused.wav"), asr, NoBoard(), logs.append, FakeClassifier()))
             self.assertEqual(asr.paths, [Path("unused.wav")])
             self.assertIn("未识别到指令", logs)
+
+    def test_unimplemented_command_does_not_contact_board(self):
+        class NoBoard:
+            def mode(self):
+                raise AssertionError("未接入执行流程的命令不应访问开发板")
+
+        class PoseClassifier:
+            def predict(self, _text):
+                return ActionPrediction("POSE_VERTICAL")
+
+        self.assertFalse(run_once("unused.wav", FakeASR("调整到竖直姿态"), NoBoard(),
+                                  classifier=PoseClassifier()))
 
 
 class LocalHttpTests(unittest.TestCase):
@@ -116,7 +131,7 @@ class LocalHttpTests(unittest.TestCase):
         client = BoardClient(f"http://127.0.0.1:{server.server_port}")
         logs = []
         asr = FakeASR("跳课程舞")
-        self.assertTrue(run_once("command.wav", asr, client, logs.append))
+        self.assertTrue(run_once("command.wav", asr, client, logs.append, FakeClassifier()))
         self.assertEqual(len(state["requests"]), 1)
         body = state["requests"][0]
         self.assertEqual(body["session_id"], "a" * 32)
@@ -145,11 +160,11 @@ class LocalHttpTests(unittest.TestCase):
 
         state["mode"]["armed"] = False
         with self.assertRaises(BoardError):
-            run_once("command.wav", asr, client, logs.append)
+            run_once("command.wav", asr, client, logs.append, FakeClassifier())
         self.assertEqual(len(state["requests"]), 3)
         state["mode"].update(armed=True, routines=[])
         with self.assertRaises(BoardError):
-            run_once("command.wav", asr, client, logs.append)
+            run_once("command.wav", asr, client, logs.append, FakeClassifier())
         self.assertEqual(len(state["requests"]), 3)
 
 

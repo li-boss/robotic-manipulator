@@ -2,17 +2,21 @@
 
 from pc.armlink import BoardError
 from .text_classification.classifier import ActionPrediction
-from .text_classification.rules import RuleClassifier
+from .text_classification.commands import load_commands
+
+_DANCE_ROUTINES = {"MUSIC_DANCE_ROUTINE", "COURSE_DANCE_ROUTINE"}
 
 
 def run_once(wav_file, recognizer, client, log=print, classifier=None) -> bool:
     """每段音频最多提交一次动作；分类器拒绝时不访问开发板。"""
+    if classifier is None:
+        raise ValueError("文本分类模型尚未接入")
     text = recognizer.transcribe(wav_file)
     log(f"识别文字：{text or '（空）'}")
     if not text or not text.strip():
         log("未识别到指令")
         return False
-    prediction = (classifier or RuleClassifier()).predict(text)
+    prediction = classifier.predict(text)
     if not isinstance(prediction, ActionPrediction):
         raise TypeError("分类器须返回 ActionPrediction")
     routine = prediction.action
@@ -21,7 +25,12 @@ def run_once(wav_file, recognizer, client, log=print, classifier=None) -> bool:
         return False
     if not isinstance(routine, str) or not routine:
         raise ValueError("分类器返回的动作标识无效")
+    if routine not in load_commands():
+        raise ValueError(f"分类器返回了未配置的命令：{routine}")
     log(f"匹配动作：{routine}" + (f"（分数 {prediction.score:.3f}）" if prediction.score is not None else ""))
+    if routine not in _DANCE_ROUTINES:
+        log(f"该指令尚未接入执行流程：{routine}")
+        return False
 
     mode = client.mode()
     if not mode.get("armed") or mode.get("kind") != "gesture_dance":
