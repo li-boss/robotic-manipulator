@@ -5,6 +5,7 @@
 ```text
 block_vision/
 ├── run_block_grasp.py         # 自动抓取入口
+├── infer_server.py            # 仅供其他 Python 环境调用的 YOLO 推理服务
 ├── vision_service.py          # 抓取网页服务
 ├── plan_server.py             # 抓放规划计算服务
 ├── base.py / color_detector.py / yolo_detector.py
@@ -43,6 +44,16 @@ block_vision/
 - 新插件是**显式选择的实验顶面检测器**。旧 A 服务的 `--top-face` 开关、8765 检测 API、mock 和 D 同帧原图接口仍留在原工作区；新主线的原始公共类型和运行器未修改。团队应先确认调用新版插件还是旧 A API，避免混用两套 `frame_id`。
 
 选用插件不等于允许抓取。真实板端 `POST /api/v1/block/target` 会触发已授权会话中的运动，助手不得代替现场人员运行实机抓取主循环。
+
+## 独立 YOLO 推理服务
+
+语音控制与 YOLO 使用不同 Python 环境时，在已安装视觉模块依赖、且有本地 `weights/best.pt` 的视觉环境启动纯推理服务：
+
+```shell
+python pc/block_vision/infer_server.py --host 127.0.0.1 --port 8096
+```
+
+语音与视觉在两台电脑时，视觉端将 `--host` 改为可供语音电脑访问的地址，并在语音端设置 `VOICE_CONTROL_VISION_URL=http://视觉电脑IP:8096`。该服务只接收 JPEG 并返回 YOLO 合格候选的像素四角、中心、颜色标签和分数，不连接开发板，也不提供抓取提交接口。语音端负责冻结帧、核对返回图像哈希、选择目标及按已授权会话提交一次抓取。
 
 ## 本机直接运行：先离线预览
 

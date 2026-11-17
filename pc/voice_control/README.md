@@ -6,6 +6,7 @@
 voice_control/
 ├── main.py                     # 命令行入口
 ├── pipeline.py                 # 识别、分类、会话检查与动作提交
+├── actions.py                  # 八种命令的分发入口与各自动作函数
 ├── microphone.py               # 按键录音
 ├── speech_recognition/         # WeNet 推理、音频处理与模型文件
 ├── text_classification/        # 转写文字的命令分类
@@ -59,6 +60,10 @@ pc/voice_control/.venv/bin/python -m pc.voice_control.speech_recognition.demo \
 `commands.json` 定义八个动作类别和 `NO_COMMAND`。`data/` 中的 `train.jsonl`、`val.jsonl`、`test.jsonl` 分别用于训练、设置拒绝阈值和评估。否定句、询问句及无关内容都明确标为 `NO_COMMAND`；训练时不会临时生成样本。
 
 `classifier.py` 用字符 TF-IDF 和逻辑回归预测命令。模型选中 `NO_COMMAND` 时原样返回，动作分数低于阈值时返回 `action=None`。`pipeline.py` 在提交动作前把 `NO_COMMAND` 当作无动作处理。模型文件放在 `text_classification/` 下的 `models/classifier.joblib`，不提交 Git；只加载自己训练生成的文件。
+
+分类后由 `actions.py` 按命令标识调用对应函数。目前音乐舞蹈、课程舞蹈和单次方块抓取已接入；其他五种命令只给出“尚未接入”提示。动作函数须检查所需参数与会话授权，不凭分类结果直接下发运动。
+
+方块抓取须由现场人员先在开发板 `/modes` 页面开启 `block_grasp` 会话；若要抓放，放置点也在该会话中预选。每次语音命令最多冻结一帧并提交一个候选，不循环、不自动重试。语音环境把冻结帧原始 JPEG 发给独立的 YOLO 推理服务（见 [视觉推理服务](../block_vision/README.md)），收到候选后校验图像 SHA-256 与本次冻结帧一致；YOLO 权重和依赖只需放在视觉环境。服务默认地址为 `http://127.0.0.1:8096`，若在另一台电脑，设置 `VOICE_CONTROL_VISION_URL=http://视觉电脑IP:8096`。说出单一颜色时只筛选该颜色；不说颜色时选合格候选中分数最高的一块；说出多个颜色或要求语音指定放置区域时不提交。识别或提交期间会话变化也不提交。任务状态为 `completed` 仅表示动作流程结束，不证明实际抓牢或放对。
 
 数据或分类代码有变化时，重新训练并评估：
 
