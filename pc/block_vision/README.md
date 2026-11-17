@@ -1,5 +1,18 @@
 # A 模块与新主线融合（2026-11-09）
 
+## 目录
+
+```text
+block_vision/
+├── run_block_grasp.py         # 自动抓取入口
+├── vision_service.py          # 抓取网页服务
+├── plan_server.py             # 抓放规划计算服务
+├── base.py / color_detector.py / yolo_detector.py
+├── top_face.py                # 顶面轮廓处理
+├── tests/                     # 颜色检测与本地模拟抓取测试
+└── requirements.txt           # 本包环境依赖
+```
+
 本轮最新实机结果、真实叠加图、仅预览命令和组员对接状态见 [摄像头与接口验证记录](FIELD_VALIDATION_20261109.md)。该记录随本目录一并入库；`weights/` 下的原始图与全部现场证据按 `.gitignore` 只保留在本地。
 
 ## 当前状态
@@ -19,7 +32,7 @@
 
 ## 插件和旧 API 的关系
 
-`yolo_detector.YoloBlockDetector` 可被已有 `pc/run_block_grasp.py --detector block_vision.yolo_detector:YoloBlockDetector` 无参数加载。模型仅初始化一次并预热，模型与顶面调用在同一锁内串行。输入即调用者冻结帧解码后的原图，既不重新采帧，也不进行 JPEG 二次压缩；Ultralytics 的 `xyxy` 已在原图空间，不再还原一次。
+`yolo_detector.YoloBlockDetector` 可被已有 `pc/block_vision/run_block_grasp.py --detector block_vision.yolo_detector:YoloBlockDetector` 无参数加载。模型仅初始化一次并预热，模型与顶面调用在同一锁内串行。输入即调用者冻结帧解码后的原图，既不重新采帧，也不进行 JPEG 二次压缩；Ultralytics 的 `xyxy` 已在原图空间，不再还原一次。
 
 - 默认 `imgsz=640`、YOLO `conf=0.25`、NMS IoU `0.5`、CPU。四类顺序固定为 `block_blue/green/red/yellow`。
 - 顶面算法仍为 `top-face-contour-roi-v3`，HSV 文件与旧配置字节相同。只抽出 `locate_image()` 接收已解码的 BGR；分割、ROI、四边形检查及中心算法不变。
@@ -52,9 +65,15 @@ Invoke-Item (Join-Path $out 'overlay.png')
 
 ## 测试与迁移重算（仅本地保留）
 
-本目录只入库运行所需代码：`top_face.py`、`yolo_detector.py`、`preview.py`、`capture_preview.py`、`grasp_once.py`、`reach_help.py`、`vision_service.py`、HSV 配置与依赖清单。
+本目录包含识别代码、`run_block_grasp.py` 抓取入口、`vision_service.py` 抓取网页服务和 `plan_server.py` 纯计算规划服务；模型权重仍保留在本地，不入库。
 
-测试与迁移验证材料（`pc/tests/test_block_*.py`、`validate_migration.py`、`check_simulator.py`、`migration_report_*.json`）按约定**不入库**，只保留在开发机上用于回归；其中的断言与结论仍适用于本目录代码，需要复核时由 A 在本机运行。
+本目录的 `tests/` 包含颜色检测与本地模拟抓取链路测试。旧版迁移验证材料（`validate_migration.py`、`check_simulator.py`、`migration_report_*.json`）只保留在开发机上，未入库。
+
+在项目根目录、已安装本包依赖的环境中运行：
+
+```shell
+python -m unittest discover -s pc/block_vision/tests -p 'test_*.py'
+```
 
 ## 对接前还需确认
 

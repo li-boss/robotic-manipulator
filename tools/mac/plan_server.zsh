@@ -15,4 +15,4 @@ fi
 if ! /sbin/ifconfig | /usr/bin/grep -q 'inet 192.168.137.101 '; then
     print '提示：本机有线网卡不是 192.168.137.101，开发板默认连不到本服务（会自动改用本地计算）。'
 fi
-exec $PY -B -u pc/plan_server.py
+exec $PY -B -u pc/block_vision/plan_server.py

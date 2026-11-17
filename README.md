@@ -7,17 +7,17 @@
 | 单关节调整、六关节姿态按钮 | 网页首页 `/` | 在用 |
 | 人工框选方块 → 抓取/抓放 | 网页 `/manipulation` | 在用（随臂冻结定位、逆解、碰撞检查） |
 | 相机内参 / 手眼标定 | 网页 `/calibration` | 在用 |
-| 方块识别自动抓取 | 网页 `/modes` 开启 + `pc/run_block_grasp.py` | 接口完成，示例颜色检测器；等待方块识别模型 |
-| 表情手势跳舞 | 网页 `/modes` 开启 + `pc/run_gesture_dance.py` | 电脑端手势/微笑模型接入；默认读取开发板摄像头 |
+| 方块识别自动抓取 | 网页 `/modes` 开启 + `pc/block_vision/run_block_grasp.py` | 接口完成，示例颜色检测器；等待方块识别模型 |
+| 表情手势跳舞 | 网页 `/modes` 开启 + `pc/gesture/run_gesture_dance.py` | 电脑端手势/微笑模型接入；默认读取开发板摄像头 |
 | 跳舞预设按钮（音乐舞蹈 / 课程舞蹈） | 网页首页“跳舞预设” | 在用 |
-| 电脑端规划提速 | `pc/plan_server.py`（开发板自动使用并复核，没开则本地计算） | 完成；Windows 待实测 |
+| 电脑端规划提速 | `pc/block_vision/plan_server.py`（开发板自动使用并复核，没开则本地计算） | 完成；Windows 待实测 |
 | 语音控制 | `pc/voice_control/`（`python -m pc.voice_control.main`） | WAV/按键录音识别固定口令，触发已授权的课程舞蹈（分类器接口已预留），见接口指南第 6 节 |
 
 ## 目录
 
 ```
 board/     开发板端：网页服务、控制层（arm.py）、抓放规划、模式会话、网页、模型、配置模板、测试、simulate.py
-pc/        电脑端：armlink 通信库、block_vision / gesture / voice_control 模块、运行脚本、规划服务 plan_server.py、测试
+pc/        电脑端：armlink 通信与取帧、block_vision 抓取与规划、gesture 表情手势、voice_control 语音控制；测试分别位于各包的 tests/
 docs/      文档（接口与合并指南、部署、算法说明、标定说明、标定板 PDF）
 tools/     run_tests.sh、Mac 启动器、设备数据迁移
 机械臂课程资料/   课程原始资料（只读参考，体积大，不入 git）
@@ -42,13 +42,19 @@ python board/simulate.py
 浏览器打开 <http://127.0.0.1:8092/modes> 开启模式，然后：
 
 ```bash
-python pc/run_block_grasp.py --board http://127.0.0.1:8092 --once
+python pc/block_vision/run_block_grasp.py --board http://127.0.0.1:8092 --once
 ```
 
-全部测试（假设备，不连机械臂）：
+板端与电脑视觉包测试（假设备，不连机械臂）：
 
 ```bash
 zsh tools/run_tests.sh
+```
+
+语音控制使用自己的 Python 环境运行测试：
+
+```bash
+pc/voice_control/.venv/bin/python -m unittest discover -s pc/voice_control/tests -p 'test_*.py'
 ```
 
 ## 实机

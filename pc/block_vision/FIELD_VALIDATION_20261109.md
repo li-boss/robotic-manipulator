@@ -62,7 +62,7 @@ Invoke-Item (Join-Path $out 'overlay.png')
 | --- | --- | --- |
 | `board/server.py` / `board/modes.py` / `pc/armlink`（机械臂控制接口） | 健康/模式/任务为 GET；`block/frame` 冻结图+真实读数；A 输出四角后，原抓取运行器会提交 `block/target` 并自动运动，所以本轮不运行它。 | 在 main。现场尚未运行该新服务。B 需确认部署与只读冻结方案。 |
 | 任务与事件代码 | 模式/任务由 `board/modes.py`、`GET /api/v1/mode`、`GET /api/v1/job` 提供；本地事件由 `board/events.py` 保存。新主线没有旧独立 task_service/event_service/contracts。 | 代码在 main，但不能仅凭目录推定 C 已完成对接。请 C 确认这些是否作为其实际消费入口，以及维护人。 |
-| D 的 `pc/gesture/recognizer.py` / `pc/run_gesture_dance.py` | `BoardSource` 调用 `BoardClient.snapshot()` 获得最新完整 BGR 原图；识别器返回 `GestureEvent`，运行器经模式授权调用 gesture 端点。未消费旧 8765 检测 API。 | 新模型在 14bb2ad 独立分支；main 仅有键盘示例与运行器。 |
+| D 的 `pc/gesture/recognizer.py` / `pc/gesture/run_gesture_dance.py` | `BoardSource` 调用 `BoardClient.snapshot()` 获得最新完整 BGR 原图；识别器返回 `GestureEvent`，运行器经模式授权调用 gesture 端点。未消费旧 8765 检测 API。 | 新模型在 14bb2ad 独立分支；main 仅有键盘示例与运行器。 |
 | 新 A 插件 | 抓取运行器把一次冻结响应解码成 BGR，传给 A，结果与原 `frame_id` 一起发送。D 独立读取快照，当前并不与 A 共享冻结编号。 | A 保持未提交；若以后要求 A/D 同帧，应由 C/B 明确帧契约，不能套用旧 API 编号。 |
 
 独立试融合位于 `G:\robotic-manipulator-ad-check`，分支 `codex/a-d-preview-20261109`。先应用原暂存快照，再复制本轮仅预览入口/测试，随后试应用 D 增量；6 个关键 A 文件逐一验证字节一致。仅 `.gitattributes` 出现 add/add，保留 D 的模型 LF 规则并补 A 的 HSV LF 规则，其余 D 模块保持推送版本。25 项 PC 测试通过，跳过 1 项因 D 实际权重未安装的实模测试；不能写成 D 实模已验证或组员现场联调完成。该试验没有回灌原暂存区，没有提交或推送。

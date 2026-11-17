@@ -1,4 +1,4 @@
-"""向电脑端规划服务（pc/plan_server.py）请求抓放计划；只传计算输入，不传任何硬件接口。
+"""向电脑端规划服务（pc/block_vision/plan_server.py）请求抓放计划；只传计算输入，不传任何硬件接口。
 
 电脑端计划一律交给 manipulation_replay.verify_remote 在开发板复核后才可能使用。
 电脑未开、版本不一致或返回格式不对时抛 PlannerUnavailable，调用方改用开发板本地规划；

@@ -1,9 +1,9 @@
 """表情/手势触发跳舞（电脑端运行）。
 
 先在网页 http://192.168.137.100:8080/modes 开启“表情手势跳舞”，再运行：
-    python pc/run_gesture_dance.py
+    python pc/gesture/run_gesture_dance.py
 默认用电脑端手势/微笑模型读取开发板摄像头；也可用 --source webcam 指定电脑摄像头，
-键盘联调则运行 `python pc/run_gesture_dance.py --recognizer gesture.keyboard:KeyboardRecognizer --source none`。
+键盘联调则运行 `python pc/gesture/run_gesture_dance.py --recognizer gesture.keyboard:KeyboardRecognizer --source none`。
 网页模式仍须由现场人员检查并开启。
 
 同一标签累计 --stable 次有效识别且置信度 ≥ --threshold 才算一次触发；允许中间漏检1帧。
@@ -14,9 +14,9 @@ from pathlib import Path
 import sys
 import time
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from armlink import BoardClient, BoardError, DEFAULT_BOARD  # noqa: E402
-from frames import load_class, open_source  # noqa: E402
+from armlink.frames import load_class, open_source  # noqa: E402
 
 
 def parse_map(text):

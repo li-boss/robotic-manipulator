@@ -7,7 +7,7 @@
   * 页面上"开始抓取"按钮就是当次运动授权；本服务不提供任何自动/定时触发。
 
 用法：
-    python pc/vision_service.py --host 0.0.0.0 --port 8099 --board http://192.168.137.100:8080
+    python pc/block_vision/vision_service.py --host 0.0.0.0 --port 8099 --board http://192.168.137.100:8080
 浏览器打开 http://192.168.137.102:8099/
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ import urllib.request
 import cv2
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from armlink import BoardClient, BoardError  # noqa: E402
 from armlink.types import BlockDetection  # noqa: E402
 from block_vision.yolo_detector import YoloBlockDetector  # noqa: E402
@@ -258,7 +258,7 @@ def main():
     parser.add_argument('--label', default='block_yellow')
     parser.add_argument('--max-age', type=int, default=90)
     parser.add_argument('--out', default=str(Path(__file__).resolve().parent /
-                                             'block_vision/weights/grasp_service'))
+                                             'weights/grasp_service'))
     args = parser.parse_args()
     args.out = Path(args.out)
     args.out.mkdir(parents=True, exist_ok=True)

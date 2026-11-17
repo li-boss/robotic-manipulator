@@ -6,7 +6,7 @@ board/ 规划代码计算，返回各阶段关节指令。开发板收到后自�
 不连接机械臂、不发送任何运动，也不保存现场数据。
 
 用法（与开发板网线相连的电脑，有线网卡 192.168.137.101）：
-    python pc/plan_server.py
+    python pc/block_vision/plan_server.py
 关掉本程序，开发板自动回到本地规划（较慢，功能不变）。
 """
 import argparse
@@ -20,7 +20,7 @@ import threading
 import time
 import types
 
-BOARD = Path(__file__).resolve().parents[1] / 'board'
+BOARD = Path(__file__).resolve().parents[2] / 'board'
 sys.path.insert(0, str(BOARD))
 
 # 与 board/planning_worker.py 相同：规划进程里禁止创建舵机对象。

@@ -11,14 +11,14 @@ from unittest.mock import patch
 
 import numpy as np
 
-PC = Path(__file__).resolve().parents[1]
+PC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PC))
 from armlink import GestureEvent, BoardClient
-from frames import load_class
+from armlink.frames import load_class
 from gesture.recognizer import CombinedRecognizer, HandRecognizer, SmileRecognizer
 from gesture.assets import ASSETS, WEIGHTS, verify_asset
 from gesture.download_assets import install
-from run_gesture_dance import Debouncer, run
+from gesture.run_gesture_dance import Debouncer, run
 
 
 class Evidence:

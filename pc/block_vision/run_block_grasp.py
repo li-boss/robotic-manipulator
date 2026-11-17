@@ -1,8 +1,8 @@
 """方块识别自动抓取（电脑端运行）。
 
 先在网页 http://192.168.137.100:8080/modes 开启“方块识别自动抓取”，再运行：
-    python pc/run_block_grasp.py                                   # 示例颜色检测器
-    python pc/run_block_grasp.py --detector my_model:MyDetector    # 换成你们的模型类
+    python pc/block_vision/run_block_grasp.py                                   # 示例颜色检测器
+    python pc/block_vision/run_block_grasp.py --detector my_model:MyDetector    # 换成你们的模型类
 本地无硬件联调：先 python board/simulate.py，再加 --board http://127.0.0.1:8092 。
 
 循环：冻结一帧 → detector.detect() → 提交得分最高的方块 → 等待抓取结束 → 下一次。
@@ -14,9 +14,9 @@ from pathlib import Path
 import sys
 import time
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from armlink import BoardClient, BoardError, DEFAULT_BOARD  # noqa: E402
-from frames import load_class  # noqa: E402
+from armlink.frames import load_class  # noqa: E402
 
 
 def run(client, detector, log=print, once=False, save_dir=None):

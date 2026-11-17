@@ -1,8 +1,22 @@
 # D：手势、微笑识别接入
 
+## 目录
+
+```text
+gesture/
+├── run_gesture_dance.py        # 识别并提交已授权的跳舞动作
+├── recognizer.py               # 表情和手势识别器
+├── gesture_detector.py         # 手势模型适配
+├── smile_detector.py           # 表情模型适配
+├── preview.py / keyboard.py    # 只读预览 / 键盘模拟
+├── assets.py / download_assets.py
+├── tests/                     # 识别器与运行器测试
+└── requirements.txt           # 本包环境依赖
+```
+
 本目录以 GitHub main `8322742` 为基础，迁入 `feature/d-smile` 的检测逻辑。
 模型在 Windows 电脑 CPU 上运行，开发板负责动作；不需要把 torch、mediapipe 安装到开发板。
-识别器不自行发 HTTP 请求，不提交关节角度；复用 `pc/run_gesture_dance.py` 和 `BoardClient`。
+识别器不自行发 HTTP 请求，不提交关节角度；复用 `pc/gesture/run_gesture_dance.py` 和 `BoardClient`。
 
 ## 1. 环境与权重
 
@@ -92,7 +106,7 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 允许 COURSE_DANCE_ROUTINE 和 MUSIC_DANCE_ROUTINE，预览并开启模拟模式。终端二：
 
 ```powershell
-.venv\Scripts\python.exe pc\run_gesture_dance.py --board http://127.0.0.1:8092 --recognizer gesture.recognizer:CombinedRecognizer --source webcam --map smile=COURSE_DANCE_ROUTINE,palm=MUSIC_DANCE_ROUTINE --stable 5 --threshold 0.3
+.venv\Scripts\python.exe pc\gesture\run_gesture_dance.py --board http://127.0.0.1:8092 --recognizer gesture.recognizer:CombinedRecognizer --source webcam --map smile=COURSE_DANCE_ROUTINE,palm=MUSIC_DANCE_ROUTINE --stable 5 --threshold 0.3
 ```
 
 上面的模拟命令显式使用微笑阈值0.3和 `--stable 5`。实机默认使用 `DanceRecognizer`：
@@ -113,7 +127,7 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 由在场的人在电脑终端执行：
 
 ```powershell
-.venv\Scripts\python.exe pc\run_gesture_dance.py --board http://192.168.137.100:8080 --source board
+.venv\Scripts\python.exe pc\gesture\run_gesture_dance.py --board http://192.168.137.100:8080 --source board
 ```
 
 实机运行默认已配置为电脑端模型 + 开发板摄像头、`smile=COURSE_DANCE_ROUTINE,palm=MUSIC_DANCE_ROUTINE`、累计3次有效识别、微笑阈值0.2。
@@ -127,7 +141,7 @@ face_landmarker.task 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0
 ## 6. 离线验证
 
 ```powershell
-.venv\Scripts\python.exe -m unittest discover -s pc\tests -p "test_gesture_*.py" -v
+.venv\Scripts\python.exe -m unittest discover -s pc\gesture\tests -p "test_*.py" -v
 ```
 
 包括标签/阈值/空帧/优先级/资源释放、真实模型空背景检查，以及本机127.0.0.1假机械臂的
