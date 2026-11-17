@@ -94,6 +94,7 @@ def demo_handler(demo):
             '/modes/preview': lambda: demo.modes.preview(fields),
             '/modes/arm': lambda: demo.modes.arm(fields),
             '/modes/disarm': lambda: demo.modes.disarm(fields, source='web'),
+            '/modes/grasp/start': lambda: demo.modes.start_grasp(fields),
             '/modes/dance/presets': lambda: demo.modes.dance_presets(),
             '/modes/dance/preview': lambda: demo.modes.dance_preview(fields),
             '/modes/dance/start': lambda: demo.modes.dance_start(fields),
@@ -105,6 +106,7 @@ def demo_handler(demo):
         return {
             '/api/v1/block/frame': lambda: demo.modes.api_block_frame(fields),
             '/api/v1/block/target': lambda: demo.modes.api_block_target(fields),
+            '/api/v1/block/report': lambda: demo.modes.api_block_report(fields),
             '/api/v1/gesture': lambda: demo.modes.api_gesture(fields),
             '/api/v1/stop': lambda: demo.modes.disarm(fields, source='pc'),
         }

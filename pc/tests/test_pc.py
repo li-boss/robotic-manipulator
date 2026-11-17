@@ -65,7 +65,7 @@ class SimulatedBoardTests(unittest.TestCase):
                 self.assertEqual(client.health()['api_version'], 1)
                 self.assertFalse(client.mode()['armed'])
                 with self.assertRaises(BoardError) as caught:
-                    client.freeze_frame('a' * 32)
+                    client.freeze_frame('a' * 32, 'b' * 32)
                 self.assertEqual(caught.exception.status, 400)
                 self.assertTrue(client.snapshot().startswith(b'\xff\xd8'))
                 # 网页侧开启（同源 + csrf）
@@ -75,7 +75,11 @@ class SimulatedBoardTests(unittest.TestCase):
                                       headers={'Content-Type': 'application/json', 'Origin': base})
                     return json.load(urlopen(request))
                 offer = web('/modes/preview', dict(kind='block_grasp', task_mode='pickup'))
-                web('/modes/arm', dict(token=offer['token'], confirmed=True))
+                session = web('/modes/arm', dict(token=offer['token'], confirmed=True))['session']['id']
+                self.assertIsNone(client.mode()['grasp_request'])
+                with self.assertRaisesRegex(BoardError, '开始识别夹取'):   # 没点按钮：电脑端不能冻结/提交
+                    client.freeze_frame(session, 'b' * 32)
+                web('/modes/grasp/start', dict(session_id=session))
                 import run_block_grasp
                 logs = []
                 run_block_grasp.run(client, ColorBlockDetector(), log=logs.append, once=True)

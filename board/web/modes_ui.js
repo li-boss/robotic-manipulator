@@ -1,7 +1,7 @@
 /* 识别模式页：预览 → 勾选确认 → 开启（授权本会话有限次数动作）；随时可关闭。 */
 const el=id=>document.getElementById(id);
 async function api(path,body){const r=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(15000),...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const data=await r.json();if(!r.ok)throw Error(data.error||'服务错误');return data;}
-let csrf=null,status=null,offer=null,kind='block_grasp',busy=false;
+let csrf=null,status=null,offer=null,kind='block_grasp',busy=false,starting=false;
 async function post(path,body={}){if(!csrf)csrf=(await api('/control/status')).csrf;return api(path,{...body,csrf});}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function tab(k){kind=k;el('tabBlock').classList.toggle('on',k==='block_grasp');el('tabDance').classList.toggle('on',k==='gesture_dance');el('blockPanel').hidden=k!=='block_grasp';el('dancePanel').hidden=k!=='gesture_dance';clearOffer();}
@@ -15,6 +15,11 @@ function render(s){status=s;el('mode').textContent=s.mode==='real'?'实机':'模
  if(!el('routineChecks').dataset.ready){for(const [name,r] of Object.entries(s.routines)){const l=document.createElement('label');l.style.display='inline-flex';l.style.gap='6px';l.style.marginRight='16px';const c=document.createElement('input');c.type='checkbox';c.checked=true;c.value=name;c.style.width='auto';c.onchange=clearOffer;l.append(c,name+'：'+(r.label||s.patterns[r.pattern])+' ±'+r.amplitude_deg+'°×'+r.repeats);el('routineChecks').append(l);}el('routineChecks').dataset.ready='1';}
  const ss=s.session;el('sessionPanel').hidden=!ss;
  if(ss){el('sessionKind').textContent=s.kinds[ss.kind];el('sessionText').textContent='已用 '+ss.used+' / '+ss.max_actions+' 次 · 剩余 '+Math.floor(ss.expires_in/60)+' 分 '+(ss.expires_in%60)+' 秒 · '+ss.message+' · 会话编号 '+ss.id;}
+ const grasp=!!ss&&ss.kind==='block_grasp';el('graspBox').hidden=!grasp;
+ if(grasp){const req=ss.grasp_request,last=ss.last_result;
+  el('startGrasp').disabled=starting||!!req||s.busy||ss.used>=ss.max_actions;
+  el('graspState').textContent=req?'本次进行中：'+({waiting_pc:'等待电脑端程序（Mac 上需正在运行 run_block_grasp.py）',freezing:'冻结画面',frozen:'识别中',planning:'规划路径'}[req.stage]||req.stage)+'……':(ss.used>=ss.max_actions?'本会话次数已用完':'点击后做一次完整的识别夹取；机械臂会运动，请确认周围安全');
+  el('graspResult').textContent=last?'上一次（'+new Date(last.at*1000).toLocaleTimeString()+'）：'+last.message:'';}
  el('blockPreview').disabled=el('dancePreview').disabled=!!ss||busy;el('history').textContent=JSON.stringify(s.history,null,2);}
 async function poll(){try{render(await api('/modes/status'));}catch(e){el('notice').textContent='连接中断：'+e.message;}finally{setTimeout(poll,1500);}}
 function params(){if(kind==='block_grasp')return {kind,task_mode:el('taskMode').value,destination:el('destination').value||null,max_actions:Number(el('blockMax').value),min_score:Number(el('minScore').value),expires_minutes:Number(el('blockExpires').value)};
@@ -28,6 +33,8 @@ function describe(p){const mode=status.mode==='real'?'实机':'模拟';let h='<p
 async function preview(){busy=true;clearOffer();try{offer=await post('/modes/preview',params());el('offer').innerHTML=describe(offer.plan);el('confirmText').textContent='我已核对以上全部参数和现场空间，同意在本会话内由电脑端识别结果触发以上有限次数的动作';el('offerPanel').hidden=false;el('offerPanel').scrollIntoView({behavior:'smooth',block:'start'});el('notice').textContent='预览有效期 120 秒；勾选确认后开启。';}catch(e){el('notice').textContent=e.message;}finally{busy=false;}}
 el('blockPreview').onclick=preview;el('dancePreview').onclick=preview;
 el('confirm').onchange=()=>{el('arm').disabled=!offer||!el('confirm').checked;};el('cancel').onclick=clearOffer;
-el('arm').onclick=async()=>{if(!offer||!el('confirm').checked)return;const token=offer.token;clearOffer();try{const r=await post('/modes/arm',{token,confirmed:true});el('notice').textContent='模式已开启：会话 '+r.session.id+'。现在运行电脑端程序即可。';render(await api('/modes/status'));}catch(e){el('notice').textContent='未开启：'+e.message;}};
+el('arm').onclick=async()=>{if(!offer||!el('confirm').checked)return;const token=offer.token;clearOffer();try{const r=await post('/modes/arm',{token,confirmed:true});el('notice').textContent='模式已开启：会话 '+r.session.id+'。'+(r.session.kind==='block_grasp'?'确认 Mac 上 run_block_grasp.py 在运行，然后点“开始识别夹取”。':'现在运行电脑端程序即可。');render(await api('/modes/status'));}catch(e){el('notice').textContent='未开启：'+e.message;}};
 el('disarm').onclick=async()=>{try{const r=await post('/modes/disarm');el('notice').textContent=r.message;render(await api('/modes/status'));}catch(e){el('notice').textContent=e.message;}};
+el('startGrasp').onclick=async()=>{const ss=status&&status.session;if(!ss||starting)return;starting=true;el('startGrasp').disabled=true;
+ try{await post('/modes/grasp/start',{session_id:ss.id});el('notice').textContent='已开始本次识别夹取';render(await api('/modes/status'));}catch(e){el('notice').textContent='未开始：'+e.message;}finally{starting=false;}};
 tab('block_grasp');poll();

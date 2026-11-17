@@ -47,6 +47,13 @@ class ModesTests(unittest.TestCase):
     def dance_session(self, **extra):
         return self.arm(kind='gesture_dance', base_state_id=BASE_ID, max_actions=2, cooldown_s=0, **extra)
 
+    def click(self, session):
+        """网页点“开始识别夹取”，返回电脑端在 /api/v1/mode 看到的编号。"""
+        self.modes.start_grasp(dict(session_id=session['id']))
+        request = self.modes.api_mode()['grasp_request']
+        self.assertRegex(request, '^[0-9a-f]{32}$')
+        return request
+
     def block_session(self, **extra):
         fields = dict(kind='block_grasp', task_mode='pick_place', destination='模拟放置点', max_actions=2)
         fields.update(extra)
@@ -334,7 +341,8 @@ class ModesTests(unittest.TestCase):
     # ---------------------------------------------------------------- 方块抓取
     def test_block_grasp_full_flow_from_vision_detection(self):
         session = self.block_session()
-        frame = self.modes.api_block_frame(dict(session_id=session['id']))
+        request = self.click(session)
+        frame = self.modes.api_block_frame(dict(session_id=session['id'], request_id=request))
         self.assertEqual(simulate.SimFake.calls, [])            # 冻结不运动
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'pc'))
@@ -344,7 +352,10 @@ class ModesTests(unittest.TestCase):
         from block_vision.color_detector import ColorBlockDetector
         image = cv2.imdecode(np.frombuffer(base64.b64decode(frame['jpeg_base64']), np.uint8), cv2.IMREAD_COLOR)
         detection = ColorBlockDetector().detect(image)[0].to_dict()
-        result = self.modes.api_block_target(dict(session_id=session['id'], frame_id=frame['frame_id'], detection=detection))
+        result = self.modes.api_block_target(dict(session_id=session['id'], request_id=request,
+                                                  frame_id=frame['frame_id'], detection=detection))
+        self.assertEqual(self.modes.status()['session']['last_result']['status'], 'started')
+        self.assertIsNone(self.modes.api_mode()['grasp_request'])
         self.wait()
         self.assertEqual(self.control.job['status'], 'completed')
         self.assertEqual(len(simulate.SimFake.calls), result['steps'])
@@ -354,14 +365,71 @@ class ModesTests(unittest.TestCase):
 
     def test_low_score_and_unknown_frame_never_plan(self):
         session = self.block_session(min_score=.8)
-        frame = self.modes.api_block_frame(dict(session_id=session['id']))
+        request = self.click(session)
+        frame = self.modes.api_block_frame(dict(session_id=session['id'], request_id=request))
         with self.assertRaises(ValueError):
-            self.modes.api_block_target(dict(session_id=session['id'], frame_id=frame['frame_id'],
+            self.modes.api_block_target(dict(session_id=session['id'], request_id=request, frame_id=frame['frame_id'],
                                              detection=dict(bbox=[300, 300, 340, 340], score=.5)))
-        with self.assertRaises((ValueError, OSError)):
-            self.modes.api_block_target(dict(session_id=session['id'], frame_id='1' * 32,
+        self.assertEqual(self.modes.status()['session']['last_result']['status'], 'rejected')
+        request = self.click(session)
+        self.modes.api_block_frame(dict(session_id=session['id'], request_id=request))
+        with self.assertRaisesRegex(ValueError, '不是本次点击后冻结'):
+            self.modes.api_block_target(dict(session_id=session['id'], request_id=request, frame_id='1' * 32,
                                              detection=dict(bbox=[300, 300, 340, 340], score=.9)))
         self.assertEqual(simulate.SimFake.calls, []);self.assertIsNone(self.control.pending)
+
+    def test_pc_can_only_grasp_after_each_click(self):
+        session = self.block_session()
+        sid = session['id']
+        self.assertIsNone(self.modes.api_mode()['grasp_request'])
+        with self.assertRaisesRegex(ValueError, '开始识别夹取'):          # 没点按钮
+            self.modes.api_block_frame(dict(session_id=sid, request_id='a' * 32))
+        with self.assertRaises(ValueError):                                # 网页点击也要带对会话编号
+            self.modes.start_grasp(dict(session_id='f' * 32))
+        request = self.click(session)
+        with self.assertRaisesRegex(ValueError, '还没结束'):              # 一次只能有一个
+            self.modes.start_grasp(dict(session_id=sid))
+        with self.assertRaisesRegex(ValueError, '编号不符'):
+            self.modes.api_block_frame(dict(session_id=sid, request_id='a' * 32))
+        frame = self.modes.api_block_frame(dict(session_id=sid, request_id=request))
+        self.assertIsNone(self.modes.api_mode()['grasp_request'])          # 已领取，不再对外显示
+        with self.assertRaisesRegex(ValueError, '不能重复'):              # 一次点击只能冻结一帧
+            self.modes.api_block_frame(dict(session_id=sid, request_id=request))
+        # 没找到方块：电脑端报告，本次结束，会话保留，可再点
+        self.modes.api_block_report(dict(session_id=sid, request_id=request, message='画面中没有找到方块'))
+        public = self.modes.status()['session']
+        self.assertIsNone(public['grasp_request'])
+        self.assertEqual(public['last_result']['status'], 'not_submitted')
+        self.assertIn('没有找到方块', public['last_result']['message'])
+        with self.assertRaises(ValueError):                                # 报告后同一编号不能再提交
+            self.modes.api_block_target(dict(session_id=sid, request_id=request, frame_id=frame['frame_id'],
+                                             detection=dict(bbox=[300, 300, 340, 340], score=.9)))
+        self.assertEqual(public['used'], 0);self.assertEqual(simulate.SimFake.calls, [])
+        self.assertIsNotNone(self.modes.session)
+
+    def test_unclaimed_click_expires_without_motion(self):
+        session = self.block_session()
+        self.click(session)
+        self.modes.session['grasp_request']['deadline'] = time.time() - 1
+        public = self.modes.status()['session']
+        self.assertIsNone(public['grasp_request'])
+        self.assertEqual(public['last_result']['status'], 'expired')
+        self.click(session)                                                # 过期后可以再点
+        self.assertEqual(simulate.SimFake.calls, [])
+
+    def test_plan_failure_ends_only_this_click(self):
+        session = self.block_session()
+        request = self.click(session)
+        frame = self.modes.api_block_frame(dict(session_id=session['id'], request_id=request))
+        from unittest import mock
+        with mock.patch.object(self.demo.manipulation, 'preview', side_effect=ValueError('方块转角不合适')):
+            with self.assertRaises(ValueError):
+                self.modes.api_block_target(dict(session_id=session['id'], request_id=request, frame_id=frame['frame_id'],
+                                                 detection=dict(bbox=[300, 300, 340, 340], score=.9)))
+        public = self.modes.status()['session']
+        self.assertEqual(public['last_result']['status'], 'plan_failed')
+        self.assertIn('方块转角不合适', public['last_result']['message'])
+        self.assertIsNone(public['grasp_request']);self.assertEqual(simulate.SimFake.calls, [])
 
     def test_pickup_mode_forces_single_action(self):
         session = self.block_session(task_mode='pickup', max_actions=5)

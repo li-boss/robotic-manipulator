@@ -3,7 +3,7 @@
 h1{margin:0;font-size:26px}h2{font-size:18px;margin-top:0}a{color:#87b9df}.muted{color:#a8b9cc}.panel{background:#182534;border:1px solid #30445c;border-radius:12px;padding:18px;margin:16px 0}
 .tabs{display:flex;gap:10px;margin:16px 0}.tabs button{flex:1;padding:14px;font-size:16px;background:#1d3047;border:1px solid #3a5878}.tabs button.on{background:#397bd0}
 input,select{color:#eaf1f8;background:#101923;border:1px solid #49607a;border-radius:5px;padding:7px;width:100%}button{background:#397bd0;color:#fff;border:0;border-radius:6px;padding:9px 14px;cursor:pointer;margin:2px}button:disabled{opacity:.5;cursor:default}
-button.stop{background:#c0453b}label{display:block;margin:8px 0}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:5px;border-bottom:1px solid #30445c}
+button.stop{background:#c0453b}button.go{background:#2f9e55;font-size:17px;padding:12px 20px}label{display:block;margin:8px 0}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:5px;border-bottom:1px solid #30445c}
 pre{white-space:pre-wrap;word-break:break-word;font-size:12px}#notice{color:#ffd080}.live{border-left:4px solid #3fb950}.check label{display:flex;gap:8px;align-items:flex-start}.check input{width:auto;margin-top:5px}
 [hidden]{display:none!important}@media(max-width:700px){.row{grid-template-columns:1fr}}
 </style><body><main>
@@ -11,13 +11,16 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:12px}#notice{color:#ffd
 <p class="muted"><a href="/">← 控制台</a> · 模型跑在电脑上，经网线把识别结果发给开发板。开启模式前，电脑端的任何运动请求都会被拒绝。</p>
 
 <section class="panel live" id="sessionPanel" hidden><h2>当前会话 <small id="sessionKind"></small></h2>
-<p id="sessionText"></p><button class="stop" id="disarm">关闭模式（停止后续动作）</button>
+<p id="sessionText"></p>
+<div id="graspBox" hidden><button id="startGrasp" class="go">开始识别夹取（完整一次）</button>
+<p id="graspState" class="muted"></p><p id="graspResult"></p></div>
+<button class="stop" id="disarm">关闭模式（停止后续动作）</button>
 <p class="muted">关闭只停止后续下发；已发给舵机的动作无法撤回，网页不是硬件急停。</p></section>
 
 <div class="tabs"><button id="tabBlock" class="on">方块识别自动抓取</button><button id="tabDance">表情手势跳舞</button></div>
 
 <section class="panel" id="blockPanel"><h2>方块识别自动抓取</h2>
-<p class="muted">开启后，电脑端程序会：冻结一帧（含六关节真实读数）→ 本地模型识别方块 → 把方块在图中的位置发回 → 开发板定位、完整检查路径后直接执行。每次抓取不再逐次确认。</p>
+<p class="muted">开启后机械臂不会自己开始。每点一次上方的“开始识别夹取”，电脑端程序做一次完整流程：冻结一帧（含六关节真实读数）→ 识别方块 → 把方块在图中的位置发回 → 开发板定位、完整检查路径后执行。没找到方块、识别出错或规划未通过时只报告结果，不自动重试，再点一次即可。</p>
 <div class="row"><label>任务<select id="taskMode"><option value="pick_place">夹取并放到固定点（可连续）</option><option value="pickup">只夹取并抬升（1 次，结束保持夹持）</option></select></label>
 <label>放置点（框选抓放页面保存）<select id="destination"></select></label>
 <label>最多抓取次数<input id="blockMax" type="number" min="1" max="20" value="3"></label></div>

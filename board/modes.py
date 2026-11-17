@@ -24,6 +24,8 @@ from saved_states import checked as checked_state
 API_VERSION = 1
 KINDS = {'block_grasp': '方块识别自动抓取', 'gesture_dance': '表情手势跳舞'}
 MAX_CONSECUTIVE_PLAN_FAILURES = 5
+GRASP_REQUEST_TIMEOUT_S = 30        # 点击“开始识别夹取”后电脑端须在此时间内冻结画面，否则本次作废
+GRASP_REQUEST_STAGE_TIMEOUT_S = 120  # 冻结后须在此时间内提交识别结果或报告未找到
 
 
 def _int(fields, key, default, low, high, name):
@@ -143,7 +145,8 @@ class Modes:
             return dict(kinds=KINDS, patterns=PATTERNS, routines=routines, session=self._public(),
                         destinations=sorted((cfg.get('destinations') or {}).keys()),
                         saved_states=self.control.states.status()['states'],
-                        mode='real' if self.control.real else 'simulation', history=self.history[-10:])
+                        mode='real' if self.control.real else 'simulation', history=self.history[-10:],
+                        busy=self.control.busy)
 
     def _plan(self, fields):
         kind = fields.get('kind')
@@ -229,7 +232,9 @@ class Modes:
             now = time.time()
             self.session = dict(id=secrets.token_hex(16), kind=plan['kind'], plan=plan, audit_hashes=audit['hashes'],
                                 armed_at=now, expires_at=now + 60 * plan['expires_minutes'], used=0,
-                                last_action_at=0, plan_failures=0, jobs=[], status='armed', message='等待电脑端请求')
+                                last_action_at=0, plan_failures=0, jobs=[], status='armed',
+                                message=('等待点击“开始识别夹取”' if plan['kind'] == 'block_grasp' else '等待电脑端请求'),
+                                grasp_request=None, last_result=None)
             self.control.record('mode_armed', dict(session=self.session['id'], plan=plan))
             return dict(session=self._public())
 
@@ -444,6 +449,9 @@ class Modes:
         if s is None:
             return None
         out = {k: s[k] for k in ('id', 'kind', 'used', 'status', 'message', 'jobs')}
+        request = s.get('grasp_request')
+        out.update(grasp_request=request and {k: request[k] for k in ('id', 'stage', 'clicked_at')},
+                   last_result=s.get('last_result'))
         out.update(max_actions=s['plan']['max_actions'], expires_in=max(0, int(s['expires_at'] - time.time())),
                    plan=s['plan'])
         return out
@@ -453,6 +461,10 @@ class Modes:
         s = self.session
         if s is None:
             return
+        request = s.get('grasp_request')
+        if request and time.time() > request['deadline']:
+            self._finish_request(s, request['id'], 'expired',
+                                 '电脑端没有在规定时间内完成识别（程序未运行或已退出？），本次未执行，可再点一次')
         job = self.control.job
         if job and job.get('id') in s['jobs'] and job.get('status') in ('failed', 'unknown'):
             self.disarm(reason='动作执行失败，会话已结束：' + str(job.get('error') or job.get('message')))
@@ -479,6 +491,53 @@ class Modes:
             raise ValueError('规则、代码或配置在会话期间变化，会话已结束')
         return s
 
+    # ------------------------------------------------------------------ 识别夹取开始按钮
+    def start_grasp(self, fields):
+        """网页“开始识别夹取”：允许电脑端做一次完整的冻结→识别→提交（每次点击只一次，不自动重试）。不运动。"""
+        with self.control.lock:
+            s = self._session(fields, 'block_grasp')
+            if s.get('grasp_request'):
+                raise ValueError('上一次识别夹取还没结束，请等它完成')
+            if self.control.busy:
+                raise ValueError('机械臂正在执行动作，请等它结束')
+            now = time.time()
+            s['grasp_request'] = dict(id=secrets.token_hex(16), stage='waiting_pc', clicked_at=now,
+                                      deadline=now + GRASP_REQUEST_TIMEOUT_S)
+            s['message'] = '已点击开始识别夹取，等待电脑端冻结画面并识别……'
+            self.control.record('mode_grasp_request', dict(session=s['id'], request=s['grasp_request']['id']))
+            return dict(session=self._public())
+
+    def _request(self, s, fields, stages):
+        request = s.get('grasp_request')
+        if request is None:
+            raise ValueError('没有待处理的识别夹取：请在网页 /modes 点击“开始识别夹取”')
+        if fields.get('request_id') != request['id']:
+            raise ValueError('识别夹取编号不符（该次可能已结束），请等待下一次点击')
+        if request['stage'] not in stages:
+            raise ValueError('该次识别夹取已在进行或已结束，不能重复提交')
+        return request
+
+    def _finish_request(self, s, request_id, status, message):
+        request = s.get('grasp_request')
+        if request is None or request['id'] != request_id:
+            return
+        s['grasp_request'] = None
+        s['last_result'] = dict(request_id=request_id, status=status, message=str(message)[:300], at=time.time())
+        s['message'] = message if status != 'started' else s['message']
+        self.control.record('mode_grasp_result', dict(session=s['id'], request=request_id, status=status,
+                                                      message=str(message)[:300]))
+
+    def api_block_report(self, fields):
+        """电脑端报告本次未提交的原因（没找到方块、识别服务出错、冻结失败等），本次结束。不运动。"""
+        with self.control.lock:
+            s = self._session(fields, 'block_grasp')
+            request = self._request(s, fields, ('waiting_pc', 'frozen'))
+            message = fields.get('message')
+            if not isinstance(message, str) or not message.strip():
+                raise ValueError('message 须为非空字符串')
+            self._finish_request(s, request['id'], 'not_submitted', '本次未执行：' + message.strip()[:280])
+            return dict(session=self._public())
+
     # ------------------------------------------------------------------ 电脑端 API
     def api_health(self):
         return dict(service='mechanical-arm-board', api_version=API_VERSION,
@@ -497,7 +556,9 @@ class Modes:
             if s['kind'] == 'gesture_dance':
                 out.update(routines=sorted(s['plan']['routines']), cooldown_s=s['plan']['cooldown_s'])
             else:
-                out.update(task_mode=s['plan']['task_mode'], min_score=s['plan']['min_score'])
+                request = s.get('grasp_request')
+                out.update(task_mode=s['plan']['task_mode'], min_score=s['plan']['min_score'],
+                           grasp_request=request['id'] if request and request['stage'] == 'waiting_pc' else None)
             return out
 
     def api_job(self):
@@ -519,30 +580,51 @@ class Modes:
     def api_block_frame(self, fields):
         """冻结一帧：读取六关节真实读数 + 当前画面，返回给电脑端识别。不运动。"""
         with self.control.lock:
-            self._session(fields, 'block_grasp')
-        captured = self.manipulation.capture({})
+            s = self._session(fields, 'block_grasp')
+            request = self._request(s, fields, ('waiting_pc',))
+            request.update(stage='freezing', deadline=time.time() + GRASP_REQUEST_STAGE_TIMEOUT_S)
+            s['message'] = '正在冻结画面……'
+        try:
+            captured = self.manipulation.capture({})
+        except Exception as exc:
+            with self.control.lock:
+                self._finish_request(s, request['id'], 'failed', '本次未执行：冻结画面失败：' + str(exc))
+            raise
+        with self.control.lock:
+            if s.get('grasp_request') is request:
+                request.update(stage='frozen', frame_id=captured['id'])
+                s['message'] = '画面已冻结，电脑端正在识别……'
         return {k: captured[k] for k in ('id', 'image_size', 'captured_at', 'joints', 'jpeg_base64')} | dict(frame_id=captured['id'])
 
     def api_block_target(self, fields):
         """提交识别结果：定位 → 完整规划 → 自动执行（会话授权）。返回本次任务编号。"""
         with self.control.lock:
             s = self._session(fields, 'block_grasp')
+            request = self._request(s, fields, ('frozen',))
             plan = s['plan']
             frame_id = _hex32(fields.get('frame_id'), 'frame_id')
-            detection = fields.get('detection')
-            score = (detection or {}).get('score', 1.0)
-            if not arm.number(score) or score < plan['min_score']:
-                raise ValueError(f'检测置信度{score!r}低于本会话下限{plan["min_score"]}，未规划')
-            meta = self.manipulation.evidence(frame_id)
-            target = detection_to_target(detection, meta['image_size'], frame_id, plan['task_mode'],
-                                         plan['destination'], plan['block_size_id'])
+            try:
+                if frame_id != request.get('frame_id'):
+                    raise ValueError('提交的画面不是本次点击后冻结的那一帧')
+                detection = fields.get('detection')
+                score = (detection or {}).get('score', 1.0)
+                if not arm.number(score) or score < plan['min_score']:
+                    raise ValueError(f'检测置信度{score!r}低于本会话下限{plan["min_score"]}，未规划')
+                meta = self.manipulation.evidence(frame_id)
+                target = detection_to_target(detection, meta['image_size'], frame_id, plan['task_mode'],
+                                             plan['destination'], plan['block_size_id'])
+            except Exception as exc:
+                self._finish_request(s, request['id'], 'rejected', '本次未执行：' + str(exc))
+                raise
+            request.update(stage='planning', deadline=time.time() + 600)
+            s['message'] = '已识别到方块，开发板正在规划路径……'
         try:
             preview = self.manipulation.preview(dict(target=target))
         except Exception as exc:
             with self.control.lock:
                 if self.session is s:
                     s['plan_failures'] += 1
-                    s['message'] = '规划未通过：' + str(exc)
+                    self._finish_request(s, request['id'], 'plan_failed', '本次未执行，规划未通过：' + str(exc))
                     if s['plan_failures'] >= MAX_CONSECUTIVE_PLAN_FAILURES:
                         self.disarm(reason=f'连续{MAX_CONSECUTIVE_PLAN_FAILURES}次规划未通过')
             raise
@@ -550,16 +632,25 @@ class Modes:
             if self.session is not s:
                 self.control.pending = None
                 raise ValueError('规划期间会话已结束，未执行')
-            self._session(fields, 'block_grasp')
+            try:
+                self._session(fields, 'block_grasp')
+            except Exception as exc:
+                self._finish_request(s, request['id'], 'rejected', '本次未执行：' + str(exc))
+                raise
             token = preview['token']
             self.control.record('mode_execute', dict(session=s['id'], token=token, kind='block_grasp',
                                                      detection=detection, target=target))
-            result = self.control.execute(dict(token=token, confirmed=True))
+            try:
+                result = self.control.execute(dict(token=token, confirmed=True))
+            except Exception as exc:
+                self._finish_request(s, request['id'], 'failed', '本次未执行：' + str(exc))
+                raise
             s['used'] += 1
             s['plan_failures'] = 0
             s['jobs'].append(token)
             s['last_action_at'] = time.time()
             s['message'] = f'第{s["used"]}次抓取已开始执行'
+            self._finish_request(s, request['id'], 'started', f'第{s["used"]}次抓取已开始执行（结果见上方会话状态）')
             steps = preview['parameters']['plan']['steps']
             return dict(job=result['job'] and {k: result['job'].get(k) for k in ('id', 'status')},
                         target=preview['parameters']['plan']['target'], steps=len(steps),

@@ -83,17 +83,25 @@ class BoardClient:
         raise BoardError('等待任务结束超时；请看现场与网页状态，不要重复提交')
 
     # ------------------------------------------------------------ 方块抓取
-    def freeze_frame(self, session_id):
-        """让开发板冻结一帧（同时读取六关节），返回 Frame。不运动。"""
-        r = self._request('/api/v1/block/frame', dict(session_id=session_id), timeout=30)
+    def freeze_frame(self, session_id, request_id):
+        """让开发板冻结一帧（同时读取六关节），返回 Frame。不运动。
+
+        request_id 来自 mode()['grasp_request']：用户在 /modes 每点一次“开始识别夹取”给一个，只能用一次。"""
+        r = self._request('/api/v1/block/frame', dict(session_id=session_id, request_id=request_id), timeout=30)
         return Frame(frame_id=r['frame_id'], jpeg=base64.b64decode(r['jpeg_base64']),
                      image_size=tuple(r['image_size']), joints=r['joints'], captured_at=r['captured_at'])
 
-    def submit_block(self, session_id, frame_id, detection: BlockDetection):
+    def submit_block(self, session_id, request_id, frame_id, detection: BlockDetection):
         """提交识别结果。开发板定位 + 规划（可能要几秒到几十秒）后自动执行，返回 job 信息。"""
         return self._request('/api/v1/block/target',
-                             dict(session_id=session_id, frame_id=frame_id, detection=detection.to_dict()),
+                             dict(session_id=session_id, request_id=request_id, frame_id=frame_id,
+                                  detection=detection.to_dict()),
                              timeout=120)
+
+    def report_block(self, session_id, request_id, message):
+        """本次没有提交（没找到方块、识别服务出错等）：告诉开发板，网页上显示原因，本次结束。"""
+        return self._request('/api/v1/block/report', dict(session_id=session_id, request_id=request_id,
+                                                          message=message))
 
     # ------------------------------------------------------------ 跳舞
     def dance(self, session_id, routine, label=None, confidence=None):
