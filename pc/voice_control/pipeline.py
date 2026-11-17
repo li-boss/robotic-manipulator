@@ -2,7 +2,7 @@
 
 from pc.armlink import BoardError
 from .text_classification.classifier import ActionPrediction
-from .text_classification.commands import load_commands
+from .text_classification.commands import NO_COMMAND, load_commands
 
 _DANCE_ROUTINES = {"MUSIC_DANCE_ROUTINE", "COURSE_DANCE_ROUTINE"}
 
@@ -19,7 +19,7 @@ def run_once(wav_file, recognizer, client, log=print, classifier=None) -> bool:
     prediction = classifier.predict(text)
     if not isinstance(prediction, ActionPrediction):
         raise TypeError("分类器须返回 ActionPrediction")
-    routine = prediction.action
+    routine = None if prediction.action == NO_COMMAND else prediction.action
     if routine is None:
         log("未识别到指令")
         return False

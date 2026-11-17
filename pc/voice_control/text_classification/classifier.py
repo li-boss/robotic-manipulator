@@ -5,16 +5,15 @@ from importlib import import_module
 from pathlib import Path
 from typing import Protocol
 
-from .commands import load_commands
+from .commands import NO_COMMAND, load_commands
 
 
-NO_COMMAND = "NO_COMMAND"
 DEFAULT_MODEL_PATH = Path(__file__).with_name("models") / "classifier.joblib"
 
 
 @dataclass(frozen=True)
 class ActionPrediction:
-    """action=None 表示拒绝执行；score 是可选的模型分数。"""
+    """保留 NO_COMMAND 类别；action=None 表示分数不足或输入为空。"""
 
     action: str | None
     score: float | None = None
@@ -32,14 +31,19 @@ def build_pipeline():
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import Pipeline
 
-    return Pipeline([
-        ("tfidf", TfidfVectorizer(analyzer="char", ngram_range=(1, 3), sublinear_tf=True)),
-        ("classifier", LogisticRegression(C=30, max_iter=1000)),
-    ])
+    return Pipeline(
+        [
+            (
+                "tfidf",
+                TfidfVectorizer(analyzer="char", ngram_range=(1, 3), sublinear_tf=True),
+            ),
+            ("classifier", LogisticRegression(C=30, max_iter=1000)),
+        ]
+    )
 
 
 class IntentClassifier:
-    """加载训练产物，低于验证阈值或命中无命令类时拒绝执行。"""
+    """加载训练产物；保留无命令类别，低于验证阈值时拒绝分类。"""
 
     def __init__(self, model_path: str | Path = DEFAULT_MODEL_PATH):
         import joblib
@@ -47,7 +51,9 @@ class IntentClassifier:
 
         path = Path(model_path)
         if not path.is_file():
-            raise FileNotFoundError(f"分类模型不存在：{path}；先运行 text_classification.train")
+            raise FileNotFoundError(
+                f"分类模型不存在：{path}；先运行 text_classification.train"
+            )
         saved = joblib.load(path)
         if not isinstance(saved, dict) or saved.get("format") != 1:
             raise ValueError("分类模型文件格式不受支持")
@@ -60,7 +66,7 @@ class IntentClassifier:
             raise ValueError("分类模型的拒绝阈值无效")
         pipeline = saved.get("pipeline")
         classes = getattr(pipeline, "classes_", ())
-        if set(classes) != {NO_COMMAND, *saved["actions"]}:
+        if set(classes) != set(saved["actions"]):
             raise ValueError("分类模型的训练类别不完整")
         self.pipeline = pipeline
         self.threshold = threshold
@@ -74,7 +80,9 @@ class IntentClassifier:
         index = int(probabilities.argmax())
         action = self.pipeline.classes_[index]
         score = float(probabilities[index])
-        if action == NO_COMMAND or score < self.threshold:
+        if action == NO_COMMAND:
+            return ActionPrediction(NO_COMMAND, score)
+        if score < self.threshold:
             return ActionPrediction(None, score)
         return ActionPrediction(action, score)
 

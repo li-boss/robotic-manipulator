@@ -6,5 +6,6 @@
   "SET_SERVO_ABS_ANGLE": "指定舵机转到指定绝对角度",
   "START_BLOCK_GRASP": "开始方块识别夹取",
   "START_EXPR_RECOG": "开始表情识别",
-  "START_GESTURE_RECOG": "开始手势识别"
+  "START_GESTURE_RECOG": "开始手势识别",
+  "NO_COMMAND": "无可执行命令"
 }

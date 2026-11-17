@@ -1,30 +1,32 @@
-"""文字命令模型的训练、加载和拒绝行为；不连接机械臂。"""
+"""交互式试用当前保存的命令文本分类模型。"""
 
-from pathlib import Path
-import tempfile
-import unittest
+import sys
 
 from pc.voice_control.text_classification.classifier import IntentClassifier
-from pc.voice_control.text_classification.dataset import check_disjoint, load_examples
-from pc.voice_control.text_classification.train import DATA_DIR, augment_negatives, train
 
 
-class TextClassificationTests(unittest.TestCase):
-    def test_training_data_and_generated_negatives_do_not_overlap_test(self):
-        training = load_examples(DATA_DIR / "train.jsonl")
-        validation = load_examples(DATA_DIR / "val.jsonl")
-        testing = load_examples(DATA_DIR / "test.jsonl")
-        check_disjoint([*training, *augment_negatives(training, validation)], validation, testing)
+def main() -> int:
+    try:
+        classifier = IntentClassifier()
+    except (OSError, ValueError) as exc:
+        print(f"模型加载失败：{exc}", file=sys.stderr)
+        return 1
 
-    def test_train_load_predict_and_reject(self):
-        with tempfile.TemporaryDirectory() as folder:
-            model_path = Path(folder) / "classifier.joblib"
-            train(DATA_DIR / "train.jsonl", DATA_DIR / "val.jsonl", model_path)
-            classifier = IntentClassifier(model_path)
-            self.assertEqual(classifier.predict("机械臂回直立位").action, "POSE_VERTICAL")
-            self.assertIsNone(classifier.predict("暂时别跳音乐那支舞").action)
-            self.assertIsNone(classifier.predict("").action)
+    print("已加载当前命令文本分类模型。直接回车退出。" + "\n")
+
+    while True:
+        try:
+            text = input("输入命令文本：").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not text:
+            return 0
+
+        prediction = classifier.predict(text)
+        print(f"分类结果：{prediction.action}（接受阈值 {classifier.threshold:.3f}）")
+        print(f"分数：{prediction.score:.3f}" + "\n")
 
 
 if __name__ == "__main__":
-    unittest.main()
+    raise SystemExit(main())

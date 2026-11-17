@@ -16,12 +16,12 @@ voice_control/
 │   ├── evaluate.py             # 独立数据评估
 │   ├── data/                   # train/val/test.jsonl
 │   └── models/                 # 训练生成的 classifier.joblib（不提交 Git）
-├── tests/                      # 本地模拟测试
+├── tests/                      # 测试文件
 ├── requirements.txt            # 全部运行依赖
 └── build-constraints.txt       # 安装时的构建依赖约束
 ```
 
-## 安装与运行
+## 快速开始
 
 在项目根目录执行：
 
@@ -32,20 +32,45 @@ uv pip install --python pc/voice_control/.venv/bin/python \
   --build-constraint pc/voice_control/build-constraints.txt
 ```
 
-`commands.json` 定义 8 个命令类别。训练数据为 JSONL，每行包含 `text` 和 `action`；`action: null` 表示无命令。仓库中的数据是初始人工示例，实际语音转写需继续补充。先训练，再评估：
-
-```shell
-pc/voice_control/.venv/bin/python -m pc.voice_control.text_classification.train
-pc/voice_control/.venv/bin/python -m pc.voice_control.text_classification.evaluate
-```
-
-训练使用字符 TF-IDF 和逻辑回归，从训练句生成否定/疑问样本，并用验证集设置拒绝阈值。推理直接加载 `models/classifier.joblib`；分类结果不确定时返回 `action=None`。训练产物只应加载自己生成的文件。若需替换分类器，可设置 `VOICE_CONTROL_CLASSIFIER=模块:类名`。
-
-运行前先启动本地模拟服务，并在 `http://127.0.0.1:8092/modes` 开启跳舞模式。模拟服务还需要 OpenCV。
+运行前把 WeNet 模型文件放进 `speech_recognition/models/wenet/`，并按“文本分类”一节训练出 `classifier.joblib`。`main.py` 当前用 MPS 推理，`--board` 默认指向本机模拟服务 `http://127.0.0.1:8092`。
 
 ```shell
 pc/voice_control/.venv/bin/python -m pc.voice_control.main --wav /path/to/command.wav
 pc/voice_control/.venv/bin/python -m pc.voice_control.main --mic
 ```
 
-`--mic` 按两次回车分别开始和结束录音。默认连接本机模拟服务；连接实机时显式指定 `--board`，并由现场人员先在网页开启会话。每段音频最多提交一次动作。目前只有两种跳舞命令接入执行流程；姿态、舵机和识别进程命令只完成分类，不会下发动作。当前数据与阈值尚未经真实 ASR 转写验证。
+`--mic` 按两次回车分别开始和结束录音
+
+连接实机时显式指定 `--board`，并由现场人员先在网页开启会话。每段音频最多提交一次动作。
+
+## 语言识别
+
+`speech_recognition/` 使用 WeNet v3.1.0 的 WenetSpeech U2++ Conformer 模型。`audio.py` 读取 WAV 并提取声学特征，`wenet_asr.py` 加载 `models/wenet/` 中的权重、词表和配置，把音频转成文字。单独检查转写效果可以运行 `demo.py`：
+
+```shell
+pc/voice_control/.venv/bin/python -m pc.voice_control.speech_recognition.demo \
+  pc/voice_control/speech_recognition/data/sample.wav --device cpu
+```
+
+`demo.py` 不调用分类器或开发板。加 `--loop` 后，模型只加载一次，每次按回车重新转写同一个 WAV；可以用 `--device mps` 比较本机推理速度。
+
+## 文本分类
+
+`commands.json` 定义八个动作类别和 `NO_COMMAND`。`data/` 中的 `train.jsonl`、`val.jsonl`、`test.jsonl` 分别用于训练、设置拒绝阈值和评估。否定句、询问句及无关内容都明确标为 `NO_COMMAND`；训练时不会临时生成样本。
+
+`classifier.py` 用字符 TF-IDF 和逻辑回归预测命令。模型选中 `NO_COMMAND` 时原样返回，动作分数低于阈值时返回 `action=None`。`pipeline.py` 在提交动作前把 `NO_COMMAND` 当作无动作处理。模型文件放在 `text_classification/` 下的 `models/classifier.joblib`，不提交 Git；只加载自己训练生成的文件。
+
+数据或分类代码有变化时，重新训练并评估：
+
+```shell
+pc/voice_control/.venv/bin/python -m pc.voice_control.text_classification.train
+pc/voice_control/.venv/bin/python -m pc.voice_control.text_classification.evaluate
+```
+
+用当前模型交互式试一句话：
+
+```shell
+pc/voice_control/.venv/bin/python -m pc.voice_control.tests.test_text_classification
+```
+
+输入文字后会显示类别和分数，直接回车退出。若要替换分类器，可设置 `VOICE_CONTROL_CLASSIFIER=模块:类名`。

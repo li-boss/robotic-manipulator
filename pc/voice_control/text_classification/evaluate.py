@@ -5,27 +5,33 @@ from pathlib import Path
 
 from sklearn.metrics import classification_report
 
-from .classifier import DEFAULT_MODEL_PATH, NO_COMMAND, IntentClassifier
-from .commands import load_commands
+from .classifier import DEFAULT_MODEL_PATH, IntentClassifier
+from .commands import NO_COMMAND, load_commands
 from .dataset import check_disjoint, load_examples
-from .train import DATA_DIR, augment_negatives
+from .train import DATA_DIR
 
 
-def evaluate(model_path: Path, data_path: Path, train_path: Path, val_path: Path) -> None:
+def evaluate(
+    model_path: Path, data_path: Path, train_path: Path, val_path: Path
+) -> None:
     training = load_examples(train_path)
     validation = load_examples(val_path)
     testing = load_examples(data_path)
     check_disjoint(training, validation, testing)
-    check_disjoint([*training, *augment_negatives(training, validation)], validation, testing)
+    check_disjoint(training, validation, testing)
     classifier = IntentClassifier(model_path)
     expected = [action for _, action in testing]
     predicted = [classifier.predict(text).action or NO_COMMAND for text, _ in testing]
-    labels = [*load_commands(), NO_COMMAND]
+    labels = list(load_commands())
     print(classification_report(expected, predicted, labels=labels, zero_division=0))
-    false_actions = sum(truth == NO_COMMAND and result != NO_COMMAND
-                        for truth, result in zip(expected, predicted))
-    wrong_actions = sum(truth != NO_COMMAND and result not in (NO_COMMAND, truth)
-                        for truth, result in zip(expected, predicted))
+    false_actions = sum(
+        truth == NO_COMMAND and result != NO_COMMAND
+        for truth, result in zip(expected, predicted)
+    )
+    wrong_actions = sum(
+        truth != NO_COMMAND and result not in (NO_COMMAND, truth)
+        for truth, result in zip(expected, predicted)
+    )
     print(f"无命令误触发：{false_actions}/{expected.count(NO_COMMAND)}")
     print(f"命令错触发：{wrong_actions}/{len(expected) - expected.count(NO_COMMAND)}")
 

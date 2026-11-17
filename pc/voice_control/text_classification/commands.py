@@ -6,6 +6,7 @@ import re
 
 
 DEFAULT_COMMANDS_PATH = Path(__file__).with_name("commands.json")
+NO_COMMAND = "NO_COMMAND"
 _ACTION_ID = re.compile(r"[A-Z][A-Z0-9_]*\Z")  # 用于检查命令名称的格式
 
 
@@ -15,6 +16,8 @@ def load_commands(path: str | Path = DEFAULT_COMMANDS_PATH) -> dict[str, str]:
         data = json.load(stream)
     if not isinstance(data, dict) or not data:
         raise ValueError("命令配置须为非空的标识到含义映射")
+    if NO_COMMAND not in data:
+        raise ValueError("命令配置缺少 NO_COMMAND 类别")
     for action, description in data.items():
         if not isinstance(action, str) or not _ACTION_ID.fullmatch(action):
             raise ValueError(f"无效的命令标识：{action!r}")

@@ -7,32 +7,12 @@ from pathlib import Path
 import joblib
 import sklearn
 
-from .classifier import DEFAULT_MODEL_PATH, NO_COMMAND, build_pipeline
-from .commands import load_commands
-from .dataset import check_disjoint, identity, load_examples
+from .classifier import DEFAULT_MODEL_PATH, build_pipeline
+from .commands import NO_COMMAND, load_commands
+from .dataset import check_disjoint, load_examples
 
 
 DATA_DIR = Path(__file__).with_name("data")
-NEGATIVE_TEMPLATES = ("不要{}", "别{}", "请停止{}", "你会{}吗", "先别{}")
-
-
-def augment_negatives(training: list[tuple[str, str]],
-                      validation: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """只从训练句生成否定和疑问样本；不使用验证集样本训练。"""
-    occupied = {identity(text) for text, _ in [*training, *validation]}
-    augmented = []
-    for text, action in training:
-        if action == NO_COMMAND:
-            continue
-        for template in NEGATIVE_TEMPLATES:
-            sample = template.format(text)
-            key = identity(sample)
-            if key not in occupied:
-                occupied.add(key)
-                augmented.append((sample, NO_COMMAND))
-    return augmented
-
-
 def choose_threshold(pipeline, examples: list[tuple[str, str]]) -> float:
     """用验证集的错误动作分数设拒绝线，避免接受已见到的误判。"""
     probabilities = pipeline.predict_proba([text for text, _ in examples])
@@ -53,7 +33,7 @@ def train(train_path: Path, val_path: Path, output_path: Path) -> None:
     training = load_examples(train_path)
     validation = load_examples(val_path)
     check_disjoint(training, validation)
-    expected = {NO_COMMAND, *load_commands()}
+    expected = set(load_commands())
     actual = {action for _, action in training}
     if actual != expected:
         raise ValueError(f"训练集类别不完整：缺少 {sorted(expected - actual)}，额外 {sorted(actual - expected)}")
@@ -61,14 +41,11 @@ def train(train_path: Path, val_path: Path, output_path: Path) -> None:
     if validation_labels != expected:
         raise ValueError(f"验证集类别不完整：缺少 {sorted(expected - validation_labels)}")
 
-    augmented = augment_negatives(training, validation)
-    training = [*training, *augmented]
-    check_disjoint(training, validation)
     pipeline = build_pipeline()
     pipeline.fit([text for text, _ in training], [action for _, action in training])
     threshold = choose_threshold(pipeline, validation)
     probabilities = pipeline.predict_proba([text for text, _ in validation])
-    accepted = {action: 0 for action in load_commands()}
+    accepted = {action: 0 for action in load_commands() if action != NO_COMMAND}
     for (_, expected_action), row in zip(validation, probabilities):
         index = int(row.argmax())
         action = pipeline.classes_[index]
@@ -82,7 +59,7 @@ def train(train_path: Path, val_path: Path, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(dict(format=1, pipeline=pipeline, threshold=threshold,
                      actions=sorted(load_commands()), sklearn_version=sklearn.__version__), output_path)
-    print(f"已训练：{len(training)} 条（含 {len(augmented)} 条训练集生成的拒绝样本）；验证：{len(validation)} 条")
+    print(f"已训练：{len(training)} 条显式标注样本；验证：{len(validation)} 条")
     print(f"验证集正确接受命令：{sum(accepted.values())}/{sum(action != NO_COMMAND for _, action in validation)}；命令误触发：0")
     print(f"拒绝阈值：{threshold:.4f}；模型：{output_path}")
 

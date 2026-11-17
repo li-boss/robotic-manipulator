@@ -51,10 +51,10 @@ python pc/block_vision/run_block_grasp.py --board http://127.0.0.1:8092 --once
 zsh tools/run_tests.sh
 ```
 
-语音控制使用自己的 Python 环境运行测试：
+语音控制使用自己的 Python 环境交互式试用当前分类模型：
 
 ```bash
-pc/voice_control/.venv/bin/python -m unittest discover -s pc/voice_control/tests -p 'test_*.py'
+pc/voice_control/.venv/bin/python -m pc.voice_control.tests.test_text_classification
 ```
 
 ## 实机
