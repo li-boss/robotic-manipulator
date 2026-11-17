@@ -60,7 +60,7 @@ pc/voice_control/.venv/bin/python -m pc.voice_control.tests.test_text_classifica
 ## 实机
 
 ```bash
-python3 -B tools/mac/service.py --start --real
+python -B tools/mac/service.py --start --real
 ```
 
 或双击 `启动机械臂网页.command`（启动开发板网页后，同一窗口接着运行本机电脑端规划，保持窗口打开即可）。网页已在运行时，只需双击 `启动电脑端规划.command`。打开 <http://192.168.137.100:8080>。启动本身不运动；运动只在网页上当次确认（或开启模式）后发生。
