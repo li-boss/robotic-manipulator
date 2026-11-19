@@ -12,10 +12,12 @@ pc/voice_control/.venv/bin/python -m pc.voice_control.speech_recognition.demo \
   pc/voice_control/speech_recognition/data/sample.wav --device cpu
 ```
 
+加 `--loop` 后模型只加载一次；每次按回车重新转写同一个 WAV，输入 `q` 退出。输出包含每次转写的耗时，方便比较 CPU 与 MPS 的预热后速度。
+
 ```python
 from pc.voice_control.speech_recognition.wenet_asr import WeNetASR
 
 text = WeNetASR(device="cpu").transcribe("audio.wav")
 ```
 
-Mac 当前使用 CPU；MPS 对示例音频会输出空文字。
+语音控制主入口当前使用 MPS；独立 demo 可用 `--device cpu` 或 `--device mps`。当前 WeNet/PyTorch 组合已针对无填充帧时的 MPS 遮罩异常做局部修正。

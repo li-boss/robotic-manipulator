@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -37,13 +39,26 @@ def select_device(name: str) -> torch.device:
     if name not in {"auto", "cpu", "mps", "cuda"}:
         raise ValueError(f"不支持的设备：{name}")
     if name == "auto":
-        # 当前 WeNet/PyTorch 组合在 Mac MPS 上会对已验证样例输出空文本。
+        # 默认仍使用已验证的 CUDA/CPU 路径；MPS 需显式指定。
         name = "cuda" if torch.cuda.is_available() else "cpu"
     if name == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA 不可用，请检查 NVIDIA 驱动及 PyTorch 安装版本")
     if name == "mps" and not torch.backends.mps.is_available():
         raise RuntimeError("MPS 不可用，请检查 macOS/PyTorch 环境，或选择 --device cpu")
     return torch.device(name)
+
+
+def _skip_mps_noop_conv_mask(_module, inputs):
+    """单条语音没有填充帧时，绕开 PyTorch 2.2.2 MPS 的 masked_fill_ 错误结果。"""
+    if len(inputs) != 3:
+        return None
+    x, mask_pad, cache = inputs
+    if mask_pad.numel() and bool(mask_pad.all()):
+        # WeNet ConvolutionModule 把输入转置成非连续视图后执行 masked_fill_。
+        # 此处遮罩全为 True，本应完全不修改输入；MPS 却会改变数值。
+        # 传入空遮罩仅跳过这两次无操作的填充遮盖，不改变注意力遮罩。
+        return x, mask_pad.new_empty((0, 0, 0)), cache
+    return None
 
 
 class WeNetASR:
@@ -118,6 +133,10 @@ class WeNetASR:
             raise ValueError("Fbank 维数与模型 input_dim 不一致")
         self.device = select_device(device)
         self.model = self._load_model().float().eval().to(self.device)
+        if self.device.type == "mps":
+            for layer in self.model.encoder.encoders:
+                if layer.conv_module is not None:
+                    layer.conv_module.register_forward_pre_hook(_skip_mps_noop_conv_mask)
 
     def _load_model(self) -> torch.nn.Module:
         # 固定 WeNet v3.1.0 的模块路径；直接构造官方网络，不调用训练入口。

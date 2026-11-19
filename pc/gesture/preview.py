@@ -6,7 +6,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from armlink import BoardClient, DEFAULT_BOARD
-from frames import open_source
+from armlink.frames import open_source
 from gesture.recognizer import CombinedRecognizer
 
 

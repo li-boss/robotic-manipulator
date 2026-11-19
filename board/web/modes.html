@@ -17,7 +17,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:12px}#notice{color:#ffd
 <button class="stop" id="disarm">关闭模式（停止后续动作）</button>
 <p class="muted">关闭只停止后续下发；已发给舵机的动作无法撤回，网页不是硬件急停。</p></section>
 
-<div class="tabs"><button id="tabBlock" class="on">方块识别自动抓取</button><button id="tabDance">表情手势跳舞</button></div>
+<div class="tabs"><button id="tabBlock" class="on">方块识别自动抓取</button><button id="tabDance">表情手势跳舞</button><button id="tabVoice">语音控制</button></div>
 
 <section class="panel" id="blockPanel"><h2>方块识别自动抓取</h2>
 <p class="muted">开启后机械臂不会自己开始。每点一次上方的“开始识别夹取”，电脑端程序做一次完整流程：冻结一帧（含六关节真实读数）→ 识别方块 → 把方块在图中的位置发回 → 开发板定位、完整检查路径后执行。没找到方块、识别出错或规划未通过时只报告结果，不自动重试，再点一次即可。</p>
@@ -36,6 +36,20 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:12px}#notice{color:#ffd
 <label>允许的动作（data/dances.json）</label><div id="routineChecks"></div>
 <label>会话有效期（分钟）<input id="danceExpires" type="number" min="1" max="60" value="10"></label>
 <button id="dancePreview">预览本次会话参数（不运动）</button></section>
+
+<section class="panel" id="voicePanel" hidden><h2>语音控制</h2>
+<p class="muted">开启后，Mac 上的语音程序（<code>pc/voice_mode/run_voice_mode.py</code>）每听到一句命令，最多触发一次下面列出的动作：回到竖直/观察姿态、把某个舵机转到某个整数角度、跳舞、抓方块（说一次就做一次完整的冻结→识别→规划→执行，不用再点按钮），以及“开始表情/手势识别”后由识别结果触发跳舞。所有动作合计不超过最多次数。</p>
+<div class="row"><label>“竖直姿态”用哪个姿态按钮（也是跳舞起始姿态）<select id="voiceVertical"></select></label>
+<label>“观察姿态”用哪个姿态按钮<select id="voiceObserve"></select></label>
+<label>“N号舵机转到X度”每次用时（ms，500～10000）<input id="voiceServoMs" type="number" min="500" max="10000" step="100" value="1000"></label></div>
+<div class="row"><label>最多动作次数（所有语音动作合计）<input id="voiceMax" type="number" min="1" max="50" value="20"></label>
+<label>两次跳舞之间最短间隔（秒）<input id="voiceCooldown" type="number" min="0" max="60" value="3"></label>
+<label>会话有效期（分钟）<input id="voiceExpires" type="number" min="1" max="60" value="10"></label></div>
+<div class="check"><label><input type="checkbox" id="voiceGrasp" checked> 允许语音“抓方块”（需要抓放配置就绪）</label></div>
+<div class="row" id="voiceGraspRow"><label>抓方块任务<select id="voiceTaskMode"><option value="pick_place">夹取并放到固定点</option><option value="pickup">只夹取并抬升（每会话 1 次，结束保持夹持）</option></select></label>
+<label>放置点<select id="voiceDestination"></select></label>
+<label>检测置信度下限（0～1）<input id="voiceMinScore" type="number" min="0" max="1" step="0.05" value="0.5"></label></div>
+<button id="voicePreview">预览本次会话参数（不运动）</button></section>
 
 <section class="panel" id="offerPanel" hidden><h2>核对后开启</h2><div id="offer"></div>
 <div class="check"><label><input type="checkbox" id="confirm"> <span id="confirmText"></span></label></div>

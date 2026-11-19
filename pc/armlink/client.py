@@ -109,6 +109,27 @@ class BoardClient:
         return self._request('/api/v1/gesture', dict(session_id=session_id, routine=routine, label=label,
                                                      confidence=confidence, request_id=secrets.token_hex(16)))
 
+    # ------------------------------------------------------------ 语音控制模式（用户11-19）
+    def _voice(self, path, session_id, text, **fields):
+        return self._request(path, dict(session_id=session_id, text=text, request_id=secrets.token_hex(16), **fields))
+
+    def voice_pose(self, session_id, pose, text):
+        """回到会话预览时选定的姿态按钮：pose 为 vertical（竖直）或 observe（观察）。"""
+        return self._voice('/api/v1/voice/pose', session_id, text, pose=pose)
+
+    def voice_servo(self, session_id, joint, angle, text):
+        """把一个舵机转到整数角度；超出会话列出的范围会被开发板拒绝（不截断）。"""
+        return self._voice('/api/v1/voice/servo', session_id, text, joint=joint, angle=angle)
+
+    def voice_dance(self, session_id, routine, text, trigger='voice', label=None, confidence=None):
+        """语音或语音模式内的表情/手势识别（trigger=expression/gesture，需 label 与 confidence）触发跳舞。"""
+        extra = dict(label=label, confidence=confidence) if trigger != 'voice' else {}
+        return self._voice('/api/v1/voice/dance', session_id, text, routine=routine, trigger=trigger, **extra)
+
+    def voice_grasp(self, session_id, text):
+        """语音“抓方块”：开发板给出一次性 request_id，之后照常 freeze_frame → submit_block / report_block。不运动。"""
+        return self._request('/api/v1/voice/grasp', dict(session_id=session_id, text=text))
+
     # ------------------------------------------------------------ 停止
     def stop(self, session_id=None):
         """请求结束当前模式会话（停止后续动作；已下发的无法撤回）。"""

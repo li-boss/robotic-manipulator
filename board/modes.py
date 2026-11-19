@@ -22,7 +22,9 @@ from paths import BOARD, WEB
 from saved_states import checked as checked_state
 
 API_VERSION = 1
-KINDS = {'block_grasp': '方块识别自动抓取', 'gesture_dance': '表情手势跳舞'}
+KINDS = {'block_grasp': '方块识别自动抓取', 'gesture_dance': '表情手势跳舞', 'voice_control': '语音控制'}
+VOICE_POSES = {'vertical': '竖直姿态', 'observe': '观察姿态'}
+GRASP_KINDS = ('block_grasp', 'voice_control')
 MAX_CONSECUTIVE_PLAN_FAILURES = 5
 GRASP_REQUEST_TIMEOUT_S = 30        # 点击“开始识别夹取”后电脑端须在此时间内冻结画面，否则本次作废
 GRASP_REQUEST_STAGE_TIMEOUT_S = 120  # 冻结后须在此时间内提交识别结果或报告未找到
@@ -157,34 +159,51 @@ class Modes:
         if self.control.real and arms.get('hardware_ready') is not True:
             raise ValueError('实机未就绪（arm_config.json 的 hardware_ready 不是 true），拒绝开启')
         if kind == 'block_grasp':
-            task_mode = fields.get('task_mode', 'pick_place')
-            if task_mode not in ('pick_place', 'pickup'):
-                raise ValueError('任务类型须为 pick_place 或 pickup')
-            cfg = self.manipulation.load()
-            destination = fields.get('destination')
-            if task_mode == 'pick_place' and destination not in (cfg.get('destinations') or {}):
-                raise ValueError('请选择一个已保存的固定放置点（在框选抓放页面保存）')
+            grasp = self._grasp_settings(fields)
             # 只夹取并抬升结束时保持夹持，无法连续抓第二块。
-            max_actions = 1 if task_mode == 'pickup' else _int(fields, 'max_actions', 3, 1, 20, '最多抓取次数')
-            score = fields.get('min_score', 0.5)
-            if not arm.number(score) or not 0 <= score <= 1:
-                raise ValueError('min_score 须为0～1')
-            ready = self.manipulation.status()['execution_readiness']
-            if not ready['ready']:
-                raise ValueError('抓放配置未就绪：' + '；'.join(i['reason'] for i in ready['issues']))
-            return dict(kind=kind, task_mode=task_mode, destination=destination if task_mode == 'pick_place' else None,
-                        destination_xy_mm=(cfg['destinations'][destination] if task_mode == 'pick_place' else None),
-                        max_actions=max_actions, min_score=float(score), expires_minutes=expires_min,
-                        block_size_id=cfg['block_size_id'],
+            max_actions = 1 if grasp['task_mode'] == 'pickup' else _int(fields, 'max_actions', 3, 1, 20, '最多抓取次数')
+            return dict(kind=kind, **grasp, max_actions=max_actions, expires_minutes=expires_min,
                         conditions='每次由电脑端识别结果在新冻结画面上定位，并完整检查路径后自动执行；'
                                    '桌面只放待抓方块，放置点保持空；任一步失败立即结束会话，不重试、不复位、不松爪。')
-        states = self.control.states.status()['states']
-        state = next((s for s in states if s['id'] == fields.get('base_state_id')), None)
+        if kind == 'voice_control':
+            return self._voice_plan(fields, arms, expires_min)
+        base = self._state(arms, fields.get('base_state_id'), '跳舞起始姿态')
+        routines = self._routines(arms, base, fields.get('routines'))
+        return dict(kind=kind, base_state=base, routines=routines,
+                    max_actions=_int(fields, 'max_actions', 10, 1, 30, '最多跳舞次数'),
+                    cooldown_s=_int(fields, 'cooldown_s', 3, 0, 60, '两次之间最短间隔(秒)'),
+                    expires_minutes=expires_min,
+                    conditions='每套动作先回到起始姿态（已到位的关节跳过；其余全部同批在300 ms内到位，读数不全或模型检查不通过则不运动、本次失败），再按列出的整数目标摆动；'
+                               '运动中不回读，周围留出摆动空间；失败立即结束会话，不重试、不复位、不松爪。')
+
+    def _grasp_settings(self, fields):
+        """方块识别抓取的会话参数（自动抓取模式与语音模式共用）。"""
+        task_mode = fields.get('task_mode', 'pick_place')
+        if task_mode not in ('pick_place', 'pickup'):
+            raise ValueError('任务类型须为 pick_place 或 pickup')
+        cfg = self.manipulation.load()
+        destination = fields.get('destination')
+        if task_mode == 'pick_place' and destination not in (cfg.get('destinations') or {}):
+            raise ValueError('请选择一个已保存的固定放置点（在框选抓放页面保存）')
+        score = fields.get('min_score', 0.5)
+        if not arm.number(score) or not 0 <= score <= 1:
+            raise ValueError('min_score 须为0～1')
+        ready = self.manipulation.status()['execution_readiness']
+        if not ready['ready']:
+            raise ValueError('抓放配置未就绪：' + '；'.join(i['reason'] for i in ready['issues']))
+        return dict(task_mode=task_mode, destination=destination if task_mode == 'pick_place' else None,
+                    destination_xy_mm=(cfg['destinations'][destination] if task_mode == 'pick_place' else None),
+                    min_score=float(score), block_size_id=cfg['block_size_id'])
+
+    def _state(self, arms, state_id, label):
+        state = next((s for s in self.control.states.status()['states'] if s['id'] == state_id), None)
         if state is None:
-            raise ValueError('请选择一个已保存的姿态按钮作为跳舞起始姿态')
-        base = dict(checked_state(arms, state), id=state['id'])
+            raise ValueError(f'请选择一个已保存的姿态按钮作为{label}')
+        return dict(checked_state(arms, state), id=state['id'])
+
+    def _routines(self, arms, base, names):
         available = load_routines(self.dances_path)['routines']
-        names = fields.get('routines') or sorted(available)
+        names = names or sorted(available)
         if not isinstance(names, list) or not names or any(n not in available for n in names):
             raise ValueError('跳舞动作须从 dances.json 的 routines 中选择')
         routines = {}
@@ -196,12 +215,37 @@ class Modes:
             check = self.check_collision(routines[n])
             if check['checked'] and not check['ok']:
                 raise ValueError(f'动作“{n}”从起始姿态“{base["name"]}”出发：{check["error"]}')
-        return dict(kind=kind, base_state=base, routines=routines,
-                    max_actions=_int(fields, 'max_actions', 10, 1, 30, '最多跳舞次数'),
-                    cooldown_s=_int(fields, 'cooldown_s', 3, 0, 60, '两次之间最短间隔(秒)'),
-                    expires_minutes=expires_min,
-                    conditions='每套动作先回到起始姿态（已到位的关节跳过；其余全部同批在300 ms内到位，读数不全或模型检查不通过则不运动、本次失败），再按列出的整数目标摆动；'
-                               '运动中不回读，周围留出摆动空间；失败立即结束会话，不重试、不复位、不松爪。')
+        return routines
+
+    def _voice_plan(self, fields, arms, expires_min):
+        """语音控制会话（用户11-19）：列出语音可触发的全部动作及其参数。"""
+        vertical = self._state(arms, fields.get('vertical_state_id'), '语音“竖直姿态”')
+        observe = self._state(arms, fields.get('observe_state_id'), '语音“观察姿态”')
+        routines = self._routines(arms, vertical, fields.get('routines'))
+        servo_ms, servo_settle = arm.timing(dict(arms, motion_ms=fields.get('servo_motion_ms')))
+        limits = {}
+        for joint in range(1, 7):
+            pair = (arms.get('joint_limits') or {}).get(str(joint))
+            try:
+                limits[str(joint)] = [arm.angle(arms, joint, pair[0]), arm.angle(arms, joint, pair[1])]
+            except (TypeError, ValueError, IndexError):
+                continue      # 未配置范围的关节不能用语音转动
+        if not limits:
+            raise ValueError('arm_config.json 没有任何已配置范围的关节，语音不能转动舵机')
+        grasp_enabled = fields.get('grasp_enabled', True)
+        if type(grasp_enabled) is not bool:
+            raise ValueError('grasp_enabled 须为 true 或 false')
+        grasp = self._grasp_settings(fields) if grasp_enabled else None
+        return dict(kind='voice_control', poses=dict(vertical=vertical, observe=observe), base_state=vertical,
+                    routines=routines, cooldown_s=_int(fields, 'cooldown_s', 3, 0, 60, '两次跳舞之间最短间隔(秒)'),
+                    servo=dict(motion_ms=servo_ms, settle_ms=servo_settle, limits=limits), grasp=grasp,
+                    max_actions=_int(fields, 'max_actions', 20, 1, 50, '最多动作次数'), expires_minutes=expires_min,
+                    conditions='每句语音经识别与分类后最多触发一次以上列出的动作：调整到所列竖直/观察姿态（按所列顺序逐关节）；'
+                               '把说出的一个舵机转到说出的整数角度（必须在所列范围内，超出即拒绝，不截断）；'
+                               '跳所列舞蹈（先在300 ms内同时回到竖直，已到位跳过）；'
+                               + ('抓方块（每次重新冻结画面、识别、完整检查路径后执行）；' if grasp else '')
+                               + '表情/手势识别触发的跳舞同样计入次数。舵机与姿态调整不做碰撞检查，与网页手动调整相同，周围须留出空间；'
+                                 '任一动作失败立即结束会话，不重试、不复位、不松爪。')
 
     def preview(self, fields):
         """生成本次会话的完整参数供用户核对；不运动。"""
@@ -233,8 +277,9 @@ class Modes:
             self.session = dict(id=secrets.token_hex(16), kind=plan['kind'], plan=plan, audit_hashes=audit['hashes'],
                                 armed_at=now, expires_at=now + 60 * plan['expires_minutes'], used=0,
                                 last_action_at=0, plan_failures=0, jobs=[], status='armed',
-                                message=('等待点击“开始识别夹取”' if plan['kind'] == 'block_grasp' else '等待电脑端请求'),
-                                grasp_request=None, last_result=None)
+                                message={'block_grasp': '等待点击“开始识别夹取”',
+                                         'voice_control': '等待语音指令'}.get(plan['kind'], '等待电脑端请求'),
+                                grasp_request=None, last_result=None, grasps=0)
             self.control.record('mode_armed', dict(session=self.session['id'], plan=plan))
             return dict(session=self._public())
 
@@ -474,12 +519,14 @@ class Modes:
             self.disarm(reason='已用完本次会话的动作次数')
 
     def _session(self, fields, kind):
+        kinds = (kind,) if isinstance(kind, str) else tuple(kind)
+        wanted = '或'.join(KINDS[k] for k in kinds)
         self._sync()
         s = self.session
         if s is None:
-            raise ValueError('模式未开启：请先在网页 /modes 上开启' + KINDS[kind])
-        if s['kind'] != kind:
-            raise ValueError('当前开启的是' + KINDS[s['kind']] + '，不是' + KINDS[kind])
+            raise ValueError('模式未开启：请先在网页 /modes 上开启' + wanted)
+        if s['kind'] not in kinds:
+            raise ValueError('当前开启的是' + KINDS[s['kind']] + '，不是' + wanted)
         if fields.get('session_id') != s['id']:
             raise ValueError('会话编号不符（会话可能已重开），请重新读取 /api/v1/mode')
         if s['used'] >= s['plan']['max_actions']:
@@ -530,7 +577,7 @@ class Modes:
     def api_block_report(self, fields):
         """电脑端报告本次未提交的原因（没找到方块、识别服务出错、冻结失败等），本次结束。不运动。"""
         with self.control.lock:
-            s = self._session(fields, 'block_grasp')
+            s = self._session(fields, GRASP_KINDS)
             request = self._request(s, fields, ('waiting_pc', 'frozen'))
             message = fields.get('message')
             if not isinstance(message, str) or not message.strip():
@@ -555,6 +602,14 @@ class Modes:
                        expires_in=public['expires_in'], busy=self.control.busy, message=s['message'])
             if s['kind'] == 'gesture_dance':
                 out.update(routines=sorted(s['plan']['routines']), cooldown_s=s['plan']['cooldown_s'])
+            elif s['kind'] == 'voice_control':
+                plan, request = s['plan'], s.get('grasp_request')
+                out.update(routines=sorted(plan['routines']), cooldown_s=plan['cooldown_s'],
+                           poses={k: v['name'] for k, v in plan['poses'].items()}, servo=plan['servo'],
+                           grasp=plan['grasp'] and dict(task_mode=plan['grasp']['task_mode'],
+                                                        min_score=plan['grasp']['min_score'],
+                                                        destination=plan['grasp']['destination']),
+                           grasp_request=request['id'] if request and request['stage'] == 'waiting_pc' else None)
             else:
                 request = s.get('grasp_request')
                 out.update(task_mode=s['plan']['task_mode'], min_score=s['plan']['min_score'],
@@ -580,7 +635,7 @@ class Modes:
     def api_block_frame(self, fields):
         """冻结一帧：读取六关节真实读数 + 当前画面，返回给电脑端识别。不运动。"""
         with self.control.lock:
-            s = self._session(fields, 'block_grasp')
+            s = self._session(fields, GRASP_KINDS)
             request = self._request(s, fields, ('waiting_pc',))
             request.update(stage='freezing', deadline=time.time() + GRASP_REQUEST_STAGE_TIMEOUT_S)
             s['message'] = '正在冻结画面……'
@@ -599,9 +654,9 @@ class Modes:
     def api_block_target(self, fields):
         """提交识别结果：定位 → 完整规划 → 自动执行（会话授权）。返回本次任务编号。"""
         with self.control.lock:
-            s = self._session(fields, 'block_grasp')
+            s = self._session(fields, GRASP_KINDS)
             request = self._request(s, fields, ('frozen',))
-            plan = s['plan']
+            plan = self._grasp_plan(s)
             frame_id = _hex32(fields.get('frame_id'), 'frame_id')
             try:
                 if frame_id != request.get('frame_id'):
@@ -633,12 +688,12 @@ class Modes:
                 self.control.pending = None
                 raise ValueError('规划期间会话已结束，未执行')
             try:
-                self._session(fields, 'block_grasp')
+                self._session(fields, GRASP_KINDS)
             except Exception as exc:
                 self._finish_request(s, request['id'], 'rejected', '本次未执行：' + str(exc))
                 raise
             token = preview['token']
-            self.control.record('mode_execute', dict(session=s['id'], token=token, kind='block_grasp',
+            self.control.record('mode_execute', dict(session=s['id'], token=token, kind=s['kind'],
                                                      detection=detection, target=target))
             try:
                 result = self.control.execute(dict(token=token, confirmed=True))
@@ -646,6 +701,7 @@ class Modes:
                 self._finish_request(s, request['id'], 'failed', '本次未执行：' + str(exc))
                 raise
             s['used'] += 1
+            s['grasps'] = s.get('grasps', 0) + 1
             s['plan_failures'] = 0
             s['jobs'].append(token)
             s['last_action_at'] = time.time()
@@ -658,15 +714,18 @@ class Modes:
 
     def api_gesture(self, fields):
         """提交一次手势/表情触发：执行会话内已确认的一套跳舞动作。"""
+        return self._dance(fields, 'gesture_dance', dict(label=fields.get('label'), confidence=fields.get('confidence')))
+
+    def _dance(self, fields, kind, trigger):
         with self.control.lock:
-            s = self._session(fields, 'gesture_dance')
+            s = self._session(fields, kind)
             request_id = _hex32(fields.get('request_id'), 'request_id')
             if request_id in self.control.direct_jobs:
                 return dict(job=self.control.direct_jobs[request_id], duplicate=True)
             name = fields.get('routine')
             if name not in s['plan']['routines']:
                 raise ValueError('本会话未授权该跳舞动作：' + str(name))
-            wait = s['plan']['cooldown_s'] - (time.time() - s['last_action_at'])
+            wait = s['plan']['cooldown_s'] - (time.time() - s.get('last_dance_at', 0))
             if wait > 0:
                 raise ValueError(f'距上一次跳舞不足{s["plan"]["cooldown_s"]}秒，请{wait:.1f}秒后再试')
             self.control.idle()
@@ -678,7 +737,6 @@ class Modes:
                                     load_routines(self.dances_path)['routines'].get(name))
             if routine != s['plan']['routines'][name]:
                 raise ValueError('跳舞动作或起始姿态在会话期间改变，未执行；请重新开启模式')
-            trigger = dict(label=fields.get('label'), confidence=fields.get('confidence'))
             args = dict(operation='dance', session=s['id'], routine=name, routine_sha256=routine['sha256'],
                         steps=routine['steps'], moves=len(routine['steps']), trigger=trigger)
             audit = self.control.audit(args)
@@ -687,10 +745,125 @@ class Modes:
             result = self.control._start_direct(request_id, args, audit)
             s['used'] += 1
             s['jobs'].append(request_id)
-            s['last_action_at'] = time.time()
-            s['message'] = f'第{s["used"]}次跳舞：{routine["label"]}（{trigger["label"]}）'
+            s['last_action_at'] = s['last_dance_at'] = time.time()
+            source = trigger.get('text') if kind == 'voice_control' and trigger.get('kind') == 'voice' else trigger.get('label')
+            s['message'] = f'第{s["used"]}次跳舞：{routine["label"]}（{source}）'
             return dict(job={k: result['job'].get(k) for k in ('id', 'status', 'total')}, routine=name,
                         duration_ms=routine['duration_ms'], used=s['used'])
+
+    # ------------------------------------------------------------------ 语音控制（用户11-19）
+    @staticmethod
+    def _voice_trigger(fields, kinds=('voice',)):
+        kind = fields.get('trigger', 'voice')
+        if kind not in kinds:
+            raise ValueError('trigger 须为 ' + ' / '.join(kinds))
+        text = fields.get('text')
+        if not isinstance(text, str) or not text.strip() or len(text) > 200:
+            raise ValueError('text 须为1～200字的识别文字')
+        trigger = dict(kind=kind, text=text.strip())
+        if kind != 'voice':
+            label, confidence = fields.get('label'), fields.get('confidence')
+            if not isinstance(label, str) or not label or len(label) > 40:
+                raise ValueError('label 须为非空标签')
+            if not arm.number(confidence) or not 0 <= confidence <= 1:
+                raise ValueError('confidence 须为0～1')
+            trigger.update(label=label, confidence=float(confidence))
+        return trigger
+
+    def _voice_start(self, s, request_id, args, label):
+        self.control.idle()
+        arms = self.control.config()
+        if self.control.real and arms.get('hardware_ready') is not True:
+            raise ValueError('实机未就绪，拒绝运动')
+        audit = self.control.audit(args)
+        result = self.control._start_direct(request_id, args, audit)
+        s['used'] += 1
+        s['jobs'].append(request_id)
+        s['last_action_at'] = time.time()
+        s['message'] = f'第{s["used"]}次：{label}（语音“{args["trigger"]["text"]}”）'
+        return dict(job={k: result['job'].get(k) for k in ('id', 'status', 'total')}, used=s['used'])
+
+    def api_voice_pose(self, fields):
+        """语音“回到竖直/观察姿态”：执行会话预览时列出的姿态按钮（逐关节，与首页姿态按钮相同）。"""
+        with self.control.lock:
+            s = self._session(fields, 'voice_control')
+            request_id = _hex32(fields.get('request_id'), 'request_id')
+            if request_id in self.control.direct_jobs:
+                return dict(job=self.control.direct_jobs[request_id], duplicate=True)
+            key = fields.get('pose')
+            if key not in VOICE_POSES:
+                raise ValueError('pose 须为 ' + ' / '.join(VOICE_POSES))
+            trigger = self._voice_trigger(fields)
+            planned = s['plan']['poses'][key]
+            arms = self.control.config()
+            states = self.control.states.status()
+            record = self._state(arms, planned['id'], VOICE_POSES[key])
+            if record != planned:
+                raise ValueError(f'{VOICE_POSES[key]}按钮在会话期间改变，未执行；请重新开启模式')
+            _, settle = arm.timing(dict(arms, motion_ms=record['motion_ms']))
+            args = dict(operation='state_move', **{k: v for k, v in record.items() if k != 'id'}, state_id=record['id'],
+                        state_sha256=states['sha256'], settle_ms=settle, moves=6, session=s['id'], trigger=trigger)
+            return self._voice_start(s, request_id, args, f'{VOICE_POSES[key]}“{record["name"]}”')
+
+    def api_voice_servo(self, fields):
+        """语音“把N号舵机转到X度”：目标须为整数且在本会话列出的范围内，超出即拒绝（不截断）。"""
+        with self.control.lock:
+            s = self._session(fields, 'voice_control')
+            request_id = _hex32(fields.get('request_id'), 'request_id')
+            if request_id in self.control.direct_jobs:
+                return dict(job=self.control.direct_jobs[request_id], duplicate=True)
+            trigger = self._voice_trigger(fields)
+            servo = s['plan']['servo']
+            joint = fields.get('joint')
+            if type(joint) is not int or str(joint) not in servo['limits']:
+                raise ValueError(f'本会话不允许语音转动舵机 {joint!r}')
+            arms = self.control.config()
+            target = arm.angle(arms, joint, fields.get('angle'))
+            low, high = servo['limits'][str(joint)]
+            if not low <= target <= high:
+                raise ValueError(f'舵机 {joint} 角度 {target} 不在本会话范围 [{low}, {high}] 内')
+            duration, settle = arm.timing(dict(arms, motion_ms=servo['motion_ms']))
+            if (duration, settle) != (servo['motion_ms'], servo['settle_ms']):
+                raise ValueError('舵机用时配置在会话期间改变，未执行；请重新开启模式')
+            args = dict(operation='direct_move', joint=joint, angle=target, motion_ms=duration, settle_ms=settle,
+                        moves=1, session=s['id'], trigger=trigger)
+            return self._voice_start(s, request_id, args, f'{joint}号舵机→{target}°')
+
+    def api_voice_dance(self, fields):
+        """语音或语音模式内的表情/手势识别触发一套跳舞。"""
+        return self._dance(fields, 'voice_control', self._voice_trigger(fields, ('voice', 'expression', 'gesture')))
+
+    def api_voice_grasp(self, fields):
+        """语音“抓方块”：用户11-19选择语音本身作为本次开始（等同点一次“开始识别夹取”）。不运动。"""
+        with self.control.lock:
+            s = self._session(fields, 'voice_control')
+            trigger = self._voice_trigger(fields)
+            grasp = self._grasp_plan(s)
+            if grasp['task_mode'] == 'pickup' and s.get('grasps', 0) >= 1:
+                raise ValueError('只夹取模式每个会话只能抓1次（结束时保持夹持）')
+            if s.get('grasp_request'):
+                raise ValueError('上一次抓方块还没结束，请等它完成')
+            if self.control.busy:
+                raise ValueError('机械臂正在执行动作，请等它结束')
+            now = time.time()
+            s['grasp_request'] = dict(id=secrets.token_hex(16), stage='waiting_pc', clicked_at=now,
+                                      deadline=now + GRASP_REQUEST_TIMEOUT_S, source='voice', text=trigger['text'])
+            s['message'] = f'语音“{trigger["text"]}”：开始识别夹取，电脑端正在冻结画面并识别……'
+            self.control.record('mode_grasp_request', dict(session=s['id'], request=s['grasp_request']['id'],
+                                                           trigger=trigger))
+            return dict(request_id=s['grasp_request']['id'], session=self._public())
+
+    def _grasp_plan(self, s):
+        if s['kind'] == 'block_grasp':
+            return s['plan']
+        if s['plan'].get('grasp') is None:
+            raise ValueError('本次语音会话没有开启抓方块')
+        return s['plan']['grasp']
+
+    def session_stopped(self, session_id):
+        """语音会话里的姿态/舵机任务每个关节下发前调用：会话已关闭则停止后续关节。"""
+        with self.control.lock:
+            return self.session is None or self.session['id'] != session_id
 
     def run_dance(self, controller, p):
         """在 Control 的任务线程里执行（已持硬件锁）。逐步批量写入，异常即停。"""

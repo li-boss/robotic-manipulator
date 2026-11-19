@@ -1,5 +1,7 @@
 """按回车开始、结束一次麦克风录音，供离线识别使用。"""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Callable
 

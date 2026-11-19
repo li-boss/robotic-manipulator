@@ -6,7 +6,7 @@ PY=.venv-mac/bin/python
 if [[ ! -x $PY ]] || ! $PY -c 'import numpy, cv2' 2>/dev/null; then
     print '首次准备 Python 环境（.venv-mac）……'
     /usr/bin/python3 -m venv .venv-mac || exit 1
-    $PY -m pip install -q -r pc/requirements.txt || { print '安装依赖失败，请检查网络'; exit 1; }
+    $PY -m pip install -q numpy opencv-python-headless || { print '安装依赖失败，请检查网络'; exit 1; }
 fi
 if /usr/bin/curl -s -m 2 http://127.0.0.1:8095/health | /usr/bin/grep -q jjt_pc_planner; then
     print '电脑端规划服务已在本机运行（端口 8095），无需重复启动。'
@@ -15,4 +15,4 @@ fi
 if ! /sbin/ifconfig | /usr/bin/grep -q 'inet 192.168.137.101 '; then
     print '提示：本机有线网卡不是 192.168.137.101，开发板默认连不到本服务（会自动改用本地计算）。'
 fi
-exec $PY -B -u pc/plan_server.py
+exec $PY -B -u pc/block_vision/plan_server.py

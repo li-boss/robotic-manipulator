@@ -312,6 +312,10 @@ class Control:
                     for index, (joint, value) in enumerate(pairs):
                         if self.audit(args)['hashes'] != p['audit']['hashes']:
                             raise ValueError('规则、代码或配置变化，停止后续关节')
+                        # 语音模式会话内的姿态/舵机任务：会话关闭后不再下发后续关节。
+                        if args.get('session') and self.modes.session_stopped(args['session']):
+                            outcome = dict(status='stopped', message=f'模式已关闭，停止后续关节（已下发{index}/{len(pairs)}个）')
+                            return
                         self.record('sending', dict(id=p['token'], parameters=args, step=index, joint=joint, angle=value))
                         # 用户10-30：写入失败重发同一绝对目标最多2次，逐次记录。
                         try:

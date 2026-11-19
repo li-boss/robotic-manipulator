@@ -108,6 +108,10 @@ def demo_handler(demo):
             '/api/v1/block/target': lambda: demo.modes.api_block_target(fields),
             '/api/v1/block/report': lambda: demo.modes.api_block_report(fields),
             '/api/v1/gesture': lambda: demo.modes.api_gesture(fields),
+            '/api/v1/voice/pose': lambda: demo.modes.api_voice_pose(fields),
+            '/api/v1/voice/servo': lambda: demo.modes.api_voice_servo(fields),
+            '/api/v1/voice/dance': lambda: demo.modes.api_voice_dance(fields),
+            '/api/v1/voice/grasp': lambda: demo.modes.api_voice_grasp(fields),
             '/api/v1/stop': lambda: demo.modes.disarm(fields, source='pc'),
         }
 

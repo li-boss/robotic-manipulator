@@ -17,7 +17,7 @@ from manipulation_reference import build_reference
 from manipulation_replay import verify_remote
 from pc_planner import PcPlanner, PlannerUnavailable, PlanningRejected
 
-SERVER_FILE = Path(__file__).resolve().parents[2] / 'pc/plan_server.py'
+SERVER_FILE = Path(__file__).resolve().parents[2] / 'pc/block_vision/plan_server.py'
 
 
 def start_server():

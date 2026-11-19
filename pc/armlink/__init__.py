@@ -1,4 +1,4 @@
-"""电脑端 ↔ 开发板通信库。
+"""电脑端 ↔ 开发板通信与共用取帧工具。
 
     from armlink import BoardClient, BlockDetection, GestureEvent
 """

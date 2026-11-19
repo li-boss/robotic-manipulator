@@ -20,6 +20,7 @@ board/data/teaching_cards.json
 pc/block_vision/weights/
 pc/gesture/weights/
 pc/voice_control/speech_recognition/models/
+pc/voice_control/text_classification/models/
 
 # 课程原始资料（体积大、版权归课程方，只在本地参考）
 机械臂课程资料/
@@ -32,3 +33,6 @@ pc/tests/test_block_*.py
 pc/block_vision/check_simulator.py
 pc/block_vision/validate_migration.py
 pc/block_vision/migration_report_*.json
+
+# 文档只保留本地，不上传 GitHub（用户2026-11-19要求）
+docs/

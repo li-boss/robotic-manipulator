@@ -1,0 +1,7 @@
+# 语音同学的 requirements.txt 按 Python 3.11 固定版本；在 .venv-mac（Python 3.9）上只替换这两个
+# 不支持 3.9 的版本，其余照原样安装：
+#   uv pip install --python .venv-mac/bin/python -r pc/voice_control/requirements.txt \
+#     --override pc/voice_mode/py39-overrides.txt --build-constraint pc/voice_control/build-constraints.txt
+# 分类模型须用本环境的 scikit-learn 重新训练（classifier.py 会核对版本）。
+scikit-learn==1.6.1
+joblib==1.5.2
