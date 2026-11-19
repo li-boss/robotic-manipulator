@@ -1,9 +1,10 @@
 """方块识别自动抓取（电脑端运行）。
 
 先在网页 http://192.168.137.100:8080/modes 开启“方块识别自动抓取”，再运行：
-    python pc/run_block_grasp.py                                   # 示例颜色检测器
-    python pc/run_block_grasp.py --detector my_model:MyDetector    # 换成你们的模型类
-    python pc/run_block_grasp.py --detect-url http://队友IP:8100     # 局域网识别服务（jjt-detect/1）
+    python pc/run_block_grasp.py                 # 按 pc/lan_config.json：有 block_detect_url 就用局域网识别服务
+    python pc/run_block_grasp.py --local         # 忽略配置，用本机检测器（默认示例颜色检测器）
+    python pc/run_block_grasp.py --local --detector my_model:MyDetector
+开发板与识别服务地址写在 pc/lan_config.json（换局域网只改这个文件）；命令行 --board / --detect-url 可临时覆盖。
 本地无硬件联调：先 python board/simulate.py，再加 --board http://127.0.0.1:8092 。
 
 程序常驻等待：会话开启后，每当用户在 /modes 点一次“开始识别夹取”，做一次完整流程
@@ -17,9 +18,10 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from armlink import BoardClient, BoardError, DEFAULT_BOARD  # noqa: E402
+from armlink import BoardClient, BoardError  # noqa: E402
 from frames import load_class  # noqa: E402
 from remote_detector import RemoteDetectError, RemoteDetector  # noqa: E402
+import lan_config  # noqa: E402
 
 
 def run(client, detector, log=print, once=False, save_dir=None, poll_s=0.5):
@@ -95,23 +97,29 @@ def attempt(client, detector, session, request, min_score, log, save_dir=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--board', default=DEFAULT_BOARD, help='开发板地址')
+    parser.add_argument('--config', default=str(lan_config.PATH), help='局域网地址配置文件（默认 pc/lan_config.json）')
+    parser.add_argument('--board', help='开发板地址（默认取配置文件 board）')
     parser.add_argument('--detector', default='block_vision.color_detector:ColorBlockDetector',
                         help='检测器类，格式 模块:类名（需在 pc/ 目录或 PYTHONPATH 下）')
     parser.add_argument('--detect-url', metavar='URL',
-                        help='局域网方块识别服务地址（jjt-detect/1，见 docs/方块识别局域网接口.md）；给出时忽略 --detector')
+                        help='局域网方块识别服务地址（默认取配置文件 block_detect_url；jjt-detect/1）')
+    parser.add_argument('--local', action='store_true', help='不用局域网识别服务，改用本机 --detector')
     parser.add_argument('--save-frames', metavar='DIR', help='把每次冻结的原图存到该目录（方便收集训练数据）')
     parser.add_argument('--once', action='store_true', help='只处理一次“开始识别夹取”点击就退出')
     args = parser.parse_args()
-    client = BoardClient(args.board)
+    config = lan_config.load(args.config)
+    board = args.board or config['board']
+    detect_url = '' if args.local else (args.detect_url if args.detect_url is not None else config['block_detect_url'])
+    client = BoardClient(board)
     log = lambda text: print(time.strftime('%H:%M:%S'), text, flush=True)
+    log(f'配置：{args.config}；开发板 {board}；识别 ' + (detect_url or '本机 ' + args.detector))
     log('开发板：' + str(client.health()))
-    if args.detect_url:
-        detector = RemoteDetector(args.detect_url, log=log)
+    if detect_url:
+        detector = RemoteDetector(detect_url, log=log)
         try:
             log('识别服务：' + str(detector.health()))
         except RemoteDetectError as exc:
-            log(str(exc));return
+            log(str(exc) + '（地址不对就改 ' + args.config + ' 的 block_detect_url）');return
     else:
         detector = load_class(args.detector)
     try:

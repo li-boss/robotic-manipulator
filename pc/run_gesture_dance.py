@@ -1,9 +1,11 @@
 """表情/手势触发跳舞（电脑端运行）。
 
 先在网页 http://192.168.137.100:8080/modes 开启“表情手势跳舞”，再运行：
-    python pc/run_gesture_dance.py
-默认用电脑端手势/微笑模型读取开发板摄像头；也可用 --source webcam 指定电脑摄像头，
-键盘联调则运行 `python pc/run_gesture_dance.py --recognizer gesture.keyboard:KeyboardRecognizer --source none`。
+    python pc/run_gesture_dance.py            # 按 pc/lan_config.json：有 gesture_url 就把画面发给局域网识别服务
+    python pc/run_gesture_dance.py --local    # 忽略配置，用本机 --recognizer 模型
+画面默认来自开发板摄像头；也可用 --source webcam 指定 Mac 摄像头。
+键盘联调：`python pc/run_gesture_dance.py --local --recognizer gesture.keyboard:KeyboardRecognizer --source none`。
+地址写在 pc/lan_config.json（换局域网只改这个文件）；命令行 --board / --gesture-url 可临时覆盖。
 网页模式仍须由现场人员检查并开启。
 
 同一标签累计 --stable 次有效识别且置信度 ≥ --threshold 才算一次触发；允许中间漏检1帧。
@@ -15,8 +17,10 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from armlink import BoardClient, BoardError, DEFAULT_BOARD  # noqa: E402
+from armlink import BoardClient, BoardError  # noqa: E402
 from frames import load_class, open_source  # noqa: E402
+import lan_config  # noqa: E402
+from remote_recognizer import RemoteProtocolError, RemoteRecognizeError, RemoteRecognizer  # noqa: E402
 
 
 def parse_map(text):
@@ -37,6 +41,9 @@ class Debouncer:
         self.max_missed_frames = max(0, int(max_missed_frames))
         self.label, self.count, self.fired = None, 0, False
         self.missed_frames = 0
+
+    def reset(self):
+        self.label, self.count, self.fired, self.missed_frames = None, 0, False, 0
 
     def feed(self, event):
         label = event.label if event is not None and event.confidence >= self.threshold else None
@@ -76,7 +83,18 @@ def run(client, recognizer, source, mapping, stable=3, threshold=0.2, log=print,
                 log('会话已结束：' + str(mode.get('message') or '网页已关闭或次数用完'))
                 return
         image = source.read()
-        detected = recognizer.recognize(image)
+        try:
+            detected = recognizer.recognize(image)
+        except RemoteProtocolError as exc:
+            log('识别服务回复不合协议，程序停止（不触发任何动作）：' + str(exc))
+            return
+        except RemoteRecognizeError as exc:
+            # 网络问题：本帧当作没识别到（防抖计数随之清零），1 秒后再取帧，不会因此触发动作。
+            log('识别服务暂时不可用，本帧按“未识别”处理：' + str(exc))
+            detected = None
+            debounce.reset()
+            time.sleep(1)
+            continue
         event = debounce.feed(detected)
         if detected is not None and not debounce.fired:
             log(f'识别候选 {detected.label}（{detected.confidence:.2f}）：{debounce.count}/{stable}')
@@ -101,20 +119,34 @@ def run(client, recognizer, source, mapping, stable=3, threshold=0.2, log=print,
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--board', default=DEFAULT_BOARD)
-    parser.add_argument('--recognizer', default='gesture.recognizer:DanceRecognizer', help='识别器类 模块:类名')
+    parser.add_argument('--config', default=str(lan_config.PATH), help='局域网地址配置文件（默认 pc/lan_config.json）')
+    parser.add_argument('--board', help='开发板地址（默认取配置文件 board）')
+    parser.add_argument('--gesture-url', metavar='URL', help='局域网表情手势识别服务（默认取配置文件 gesture_url；jjt-gesture/1）')
+    parser.add_argument('--local', action='store_true', help='不用局域网识别服务，改用本机 --recognizer')
+    parser.add_argument('--recognizer', default='gesture.recognizer:DanceRecognizer', help='本机识别器类 模块:类名（--local 或未配置地址时用）')
     parser.add_argument('--source', default='board', help='board（开发板摄像头，默认）/ webcam / webcam1 / none')
     parser.add_argument('--map', default='smile=COURSE_DANCE_ROUTINE,palm=MUSIC_DANCE_ROUTINE', help='标签=动作,标签=动作')
     parser.add_argument('--stable', type=int, default=3, help='有效识别次数；允许中间漏检1帧')
     parser.add_argument('--threshold', type=float, default=0.2, help='置信度下限')
     args = parser.parse_args()
-    client = BoardClient(args.board)
+    config = lan_config.load(args.config)
+    board = args.board or config['board']
+    url = '' if args.local else (args.gesture_url if args.gesture_url is not None else config['gesture_url'])
+    client = BoardClient(board)
     log = lambda text: print(time.strftime('%H:%M:%S'), text, flush=True)
+    log(f'配置：{args.config}；开发板 {board}')
     log('开发板：' + str(client.health()))
     log('图像来源：' + args.source)
-    log('识别器：' + args.recognizer)
+    log('识别器：' + (f'局域网识别服务 {url}' if url else '本机 ' + args.recognizer))
     log(f'触发设置：阈值={args.threshold}，有效识别次数={args.stable}，映射={args.map}')
-    recognizer = load_class(args.recognizer)
+    if url:
+        recognizer = RemoteRecognizer(url, log=log)
+        try:
+            log('识别服务：' + str(recognizer.health()))
+        except (RemoteRecognizeError, RemoteProtocolError) as exc:
+            log(str(exc) + '（地址不对就改 ' + args.config + ' 的 gesture_url）');return
+    else:
+        recognizer = load_class(args.recognizer)
     source = open_source(args.source, client)
     try:
         run(client, recognizer, source, parse_map(args.map), args.stable, args.threshold, log=log)
