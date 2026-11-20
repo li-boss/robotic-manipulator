@@ -53,7 +53,7 @@ block_vision/
 python pc/block_vision/infer_server.py --host 127.0.0.1 --port 8096
 ```
 
-语音与视觉在两台电脑时，视觉端将 `--host` 改为可供语音电脑访问的地址，并在语音端设置 `VOICE_CONTROL_VISION_URL=http://视觉电脑IP:8096`。该服务只接收 JPEG 并返回 YOLO 合格候选的像素四角、中心、颜色标签和分数，不连接开发板，也不提供抓取提交接口。语音端负责冻结帧、核对返回图像哈希、选择目标及按已授权会话提交一次抓取。
+语音与视觉在两台电脑时，视觉端将 `--host` 改为可供语音电脑访问的地址，并在语音端的 `pc/lan/lan_config.json` 配置 `block_detect_url`。当前语音入口是 `python -m pc.voice_control.main`，复用 `pc/lan` 的 `jjt-detect/1` 接口及 `pc/block_vision/run_block_grasp.py` 的一次抓取流程。
 
 ## 本机直接运行：先离线预览
 

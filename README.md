@@ -11,14 +11,14 @@
 | 表情手势跳舞 | 网页 `/modes` 开启 + `pc/gesture/run_gesture_dance.py` | 电脑端手势/微笑模型接入；默认读取开发板摄像头 |
 | 跳舞预设按钮（音乐舞蹈 / 课程舞蹈） | 网页首页“跳舞预设” | 在用 |
 | 电脑端规划提速 | `pc/block_vision/plan_server.py`（开发板自动使用并复核，没开则本地计算） | 完成；Windows 待实测 |
-| 语音控制模式 | 网页 `/modes` “语音控制”开启 + `pc/voice_mode/run_voice_mode.py` | 八类语音命令（两套舞蹈、竖直/观察姿态、N号舵机转到X度、抓方块、开始表情/手势识别）全部接入；语音识别与分类模型来自 `pc/voice_control/`，见 [语音控制模式说明](pc/voice_mode/README.md) |
+| 语音控制模式 | 网页 `/modes` “语音控制”开启 + `python -m pc.voice_control.main` | 八类语音命令（两套舞蹈、竖直/观察姿态、N号舵机转到X度、抓方块、开始表情/手势识别）全部接入；语音识别与分类模型来自 `pc/voice_control/`，见 [语音控制说明](pc/voice_control/README.md) |
 
 ## 目录
 
 ```
 board/     开发板端：网页服务、控制层（arm.py）、抓放规划、模式会话、网页、模型、配置模板、测试、simulate.py
 pc/        电脑端：armlink 通信与取帧、block_vision 抓取与规划、gesture 表情手势、lan 局域网识别服务与地址配置、
-           voice_control 语音识别与分类（语音同学）、voice_mode 语音控制模式；测试分别位于各包的 tests/
+           voice_control 语音识别、分类与语音控制模式；测试分别位于各包的 tests/
 docs/      文档（只保留在本地，不上传 GitHub）
 tools/     run_tests.sh、Mac 启动器、设备数据迁移
 机械臂课程资料/   课程原始资料（只读参考，体积大，不入 git）
@@ -52,10 +52,10 @@ python pc/block_vision/run_block_grasp.py --board http://127.0.0.1:8092 --once
 zsh tools/run_tests.sh
 ```
 
-语音控制模式（与其他电脑端程序共用 `.venv-mac`，安装见 [pc/voice_mode/README.md](pc/voice_mode/README.md)），在 `/modes` 开启“语音控制”后：
+语音控制模式使用独立的 Python 3.11.17 环境 `pc/voice_control/.venv`（安装见 [pc/voice_control/README.md](pc/voice_control/README.md)）。在 `/modes` 开启“语音控制”后：
 
 ```bash
-.venv-mac/bin/python pc/voice_mode/run_voice_mode.py --board http://127.0.0.1:8092 --local --text
+pc/voice_control/.venv/bin/python -m pc.voice_control.main --board http://127.0.0.1:8092 --text
 ```
 
 ## 实机

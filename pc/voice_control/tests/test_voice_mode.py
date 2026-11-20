@@ -10,9 +10,8 @@ BOARD = PC.parent / 'board'
 sys.path[:0] = [str(PC), str(PC.parent), str(BOARD), str(BOARD / 'tests')]
 
 from armlink import BoardClient, GestureEvent  # noqa: E402
-from block_vision.color_detector import ColorBlockDetector  # noqa: E402
-from voice_mode.run_voice_mode import VoiceMode, requested_color  # noqa: E402
-from voice_mode.servo_text import chinese_number, parse_servo_command  # noqa: E402
+from pc.voice_control.actions import VoiceMode, requested_color  # noqa: E402
+from pc.voice_control.actions import chinese_number, parse_servo_command  # noqa: E402
 
 
 class ServoTextTests(unittest.TestCase):
@@ -62,6 +61,7 @@ class FakeSource:
 
 class SimulatedBoardTests(unittest.TestCase):
     def test_every_command_against_simulated_board(self):
+        from block_vision.color_detector import ColorBlockDetector
         import json
         from http.server import ThreadingHTTPServer
         from urllib.request import Request, urlopen

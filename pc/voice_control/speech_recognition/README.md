@@ -20,4 +20,4 @@ from pc.voice_control.speech_recognition.wenet_asr import WeNetASR
 text = WeNetASR(device="cpu").transcribe("audio.wav")
 ```
 
-语音控制主入口当前使用 MPS；独立 demo 可用 `--device cpu` 或 `--device mps`。当前 WeNet/PyTorch 组合已针对无填充帧时的 MPS 遮罩异常做局部修正。
+语音控制主入口默认使用 CPU，可通过 `--device mps` 切换；独立 demo 也可用 `--device cpu` 或 `--device mps`。当前 WeNet/PyTorch 组合已针对无填充帧时的 MPS 遮罩异常做局部修正。

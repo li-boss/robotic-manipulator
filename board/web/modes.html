@@ -38,7 +38,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:12px}#notice{color:#ffd
 <button id="dancePreview">预览本次会话参数（不运动）</button></section>
 
 <section class="panel" id="voicePanel" hidden><h2>语音控制</h2>
-<p class="muted">开启后，Mac 上的语音程序（<code>pc/voice_mode/run_voice_mode.py</code>）每听到一句命令，最多触发一次下面列出的动作：回到竖直/观察姿态、把某个舵机转到某个整数角度、跳舞、抓方块（说一次就做一次完整的冻结→识别→规划→执行，不用再点按钮），以及“开始表情/手势识别”后由识别结果触发跳舞。所有动作合计不超过最多次数。</p>
+<p class="muted">开启后，Mac 上的语音程序（<code>python -m pc.voice_control.main</code>）每听到一句命令，最多触发一次下面列出的动作：回到竖直/观察姿态、把某个舵机转到某个整数角度、跳舞、抓方块（说一次就做一次完整的冻结→识别→规划→执行，不用再点按钮），以及“开始表情/手势识别”后由识别结果触发跳舞。所有动作合计不超过最多次数。</p>
 <div class="row"><label>“竖直姿态”用哪个姿态按钮（也是跳舞起始姿态）<select id="voiceVertical"></select></label>
 <label>“观察姿态”用哪个姿态按钮<select id="voiceObserve"></select></label>
 <label>“N号舵机转到X度”每次用时（ms，500～10000）<input id="voiceServoMs" type="number" min="500" max="10000" step="100" value="1000"></label></div>
